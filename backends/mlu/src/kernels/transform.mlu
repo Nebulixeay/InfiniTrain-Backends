@@ -16,10 +16,18 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 注意（实测）：本工具链下 taskIdX/coreId/taskDimX/coreDim 与预期语义不符，配合
-// cnrtFuncTypeUnion1 时循环写 GDRAM 只有首尾元素落盘。厂商示例（samples/BANG/.../
-// vectoradd/0_scalarAdd_single_core）用的是纯串行循环 + cnrtFuncTypeBlock。
-// 因此所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
+// 并行度（016 核对，沿用 015 已证实的同一机制）：本工具链下 dim.x*dim.y*dim.z 是本次启动
+// 占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，
+// cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按输出线性下标
+// idx = taskId、步长 taskDim 分片，每个输出元素恰被一个 task 写一次，无需跨 task 同步。
+// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
+// 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd
+// 与 1_Performance/matmul 的 taskId/taskDim 切分范式。
+// 历史记录（保留）：tests/math_selftest 的探针在 cnrtFuncTypeUnion1 + dim={1,1,1} 下报
+// cnInvokeKernel 100006 CN_ERROR_INVALID_VALUE（1 core 少于 Union1 要求的 4 core，启动被驱动
+// 拒绝），而 dim={4,1,1} 下 taskDim=1、其 “taskIdX*coreDim+coreId” 公式只覆盖 1/4 下标。
+// 故旧结论“多任务/Union1 下循环写 GDRAM 只有首尾落盘”源于错误 dim 与错误索引公式，
+// 不构成对多任务并行的否定；原始日志见协作沟通/001、015/Kimi.md 与 016/Kimi.md K-001。
 
 // ----------------------------- Tril / Triu -----------------------------
 // 前向反向同形：满足条件保留原值，否则置 0
@@ -27,7 +35,7 @@ constexpr uint32_t kDefaultTaskCount = 4;
 template <typename T, bool kTriu>
 __mlu_global__ void TrilTriuKernel(const T *input, T *output, int64_t rows, int64_t cols, int64_t diagonal) {
     const int64_t n = rows * cols;
-    for (int64_t idx = 0; idx < n; ++idx) {
+    for (int64_t idx = taskId; idx < n; idx += taskDim) {
         const int64_t row = idx / cols;
         const int64_t col = idx % cols;
         const bool keep = kTriu ? (row - col + diagonal <= 0) : (row - col + diagonal >= 0);
@@ -40,7 +48,7 @@ __mlu_global__ void TrilTriuKernel(const T *input, T *output, int64_t rows, int6
 template <typename T>
 __mlu_global__ void TransposeKernel(const T *input, T *output, MluIndexMeta meta, int64_t dim0, int64_t dim1,
                                     int64_t num_elements) {
-    for (int64_t idx = 0; idx < num_elements; ++idx) {
+    for (int64_t idx = taskId; idx < num_elements; idx += taskDim) {
         int64_t remaining = idx;
         int64_t coords[MLU_MAX_META_DIMS];
         for (int i = 0; i < meta.ndim; ++i) {
@@ -60,7 +68,7 @@ __mlu_global__ void TransposeKernel(const T *input, T *output, MluIndexMeta meta
 
 template <typename T>
 __mlu_global__ void SliceForwardKernel(const T *input, T *output, MluIndexMeta meta, int64_t num_elements) {
-    for (int64_t out_idx = 0; out_idx < num_elements; ++out_idx) {
+    for (int64_t out_idx = taskId; out_idx < num_elements; out_idx += taskDim) {
         int64_t in_index = 0;
         for (int i = 0; i < meta.ndim; ++i) {
             const int64_t idx = (out_idx / meta.out_strides[i]) % meta.dims[i];
@@ -70,10 +78,13 @@ __mlu_global__ void SliceForwardKernel(const T *input, T *output, MluIndexMeta m
     }
 }
 
-// grad_input 调用前必须已清零
+// grad_input 调用前必须已清零（Fill 在同一 queue 上先行完成，与下面的分散写不构成竞争）。
+// 并行安全性（016/K-001 §5 C3）：in_index = Σ_i (starts[i] + idx_i*steps[i]) * in_strides[i]，
+// 对 steps[i] >= 1，out_coord 是双射、in_strides 是输入的非退化行主序步长，故 out_idx -> in_index
+// 为单射：不同 task 不会写同一个 grad_input 元素，无需 atomic，结果确定。
 template <typename T>
 __mlu_global__ void SliceBackwardKernel(const T *grad_output, T *grad_input, MluIndexMeta meta, int64_t num_elements) {
-    for (int64_t out_idx = 0; out_idx < num_elements; ++out_idx) {
+    for (int64_t out_idx = taskId; out_idx < num_elements; out_idx += taskDim) {
         int64_t in_index = 0;
         for (int i = 0; i < meta.ndim; ++i) {
             const int64_t idx = (out_idx / meta.out_strides[i]) % meta.dims[i];
@@ -90,7 +101,7 @@ __mlu_global__ void SliceBackwardKernel(const T *grad_output, T *grad_input, Mlu
 template <typename T, bool kLead>
 __mlu_global__ void MaskForwardKernel(const T *input, const T *mask, T *output, T value, int64_t mask_extent,
                                       int64_t inner, int64_t num_elements) {
-    for (int64_t i = 0; i < num_elements; ++i) {
+    for (int64_t i = taskId; i < num_elements; i += taskDim) {
         const int64_t mask_idx = kLead ? (i / inner) : (i % mask_extent);
         output[i] = (mask[mask_idx] == static_cast<T>(1)) ? value : input[i];
     }
@@ -99,7 +110,7 @@ __mlu_global__ void MaskForwardKernel(const T *input, const T *mask, T *output, 
 template <typename T, bool kLead>
 __mlu_global__ void MaskBackwardKernel(const T *grad_output, const T *mask, T *grad_input, int64_t mask_extent,
                                        int64_t inner, int64_t num_elements) {
-    for (int64_t i = 0; i < num_elements; ++i) {
+    for (int64_t i = taskId; i < num_elements; i += taskDim) {
         const int64_t mask_idx = kLead ? (i / inner) : (i % mask_extent);
         grad_input[i] = (mask[mask_idx] == static_cast<T>(1)) ? static_cast<T>(0) : grad_output[i];
     }
@@ -107,7 +118,8 @@ __mlu_global__ void MaskBackwardKernel(const T *grad_output, const T *mask, T *g
 
 // ----------------------------- 启动器 -----------------------------
 
-const cnrtDim3_t kDim = {1, 1, 1};
+// 启动配置：Block + {4,4,1} = 16 core / 16 task（厂商 global_var 示例同形，K-001 §4/§5）。
+const cnrtDim3_t kDim = {4, 4, 1};
 
 template <typename T>
 void TrilTriuTyped(const void *input, void *output, int64_t rows, int64_t cols, int64_t diagonal, bool upper,

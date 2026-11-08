@@ -6,10 +6,13 @@
 // 精度：host 侧为 float 顺序累加（k 递增），与分块累加的差异仅来自舍入。
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <vector>
 
 #include "glog/logging.h"
@@ -102,6 +105,35 @@ int64_t NumElementsOf(const std::vector<int64_t> &dims) {
     return std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<int64_t>());
 }
 
+// NOTE(014-P1 v1) 分段计时临时探针：仅 MLU_LINEAR_PROFILE=1 时生效，默认零日志、零行为变化。
+// 开关语义沿用 mlu_debug.h 的约定：unset / "0" / "false" 关闭，其它值开启。
+bool LinearProfileEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("MLU_LINEAR_PROFILE");
+        if (value == nullptr || value[0] == '\0') {
+            return false;
+        }
+        return std::strcmp(value, "0") != 0 && std::strcmp(value, "false") != 0;
+    }();
+    return enabled;
+}
+
+double MsBetween(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
+    return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+int64_t NextLinearProfileCallId() {
+    static int64_t next_call_id = 0;
+    return next_call_id++;
+}
+
+std::string LinearProfileTag(int64_t call_id, int64_t rows, int64_t in_features, int64_t out_features, bool has_bias) {
+    std::ostringstream oss;
+    oss << "[MLU_LINEAR_PROFILE] call=" << call_id << " rows=" << rows << " in_features=" << in_features
+        << " out_features=" << out_features << " has_bias=" << (has_bias ? 1 : 0);
+    return oss.str();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -129,22 +161,72 @@ std::shared_ptr<Tensor> LinearForward(const std::shared_ptr<Tensor> &input, cons
     auto output = std::make_shared<Tensor>(output_dims, input->Dtype(), input->GetDevice());
 
     const int64_t rows = NumElementsOf(input_dims) / in_features;
+    const bool profile = LinearProfileEnabled();
+    const int64_t profile_call = profile ? NextLinearProfileCallId() : -1;
+    std::string profile_tag;
+    std::chrono::steady_clock::time_point t_enter;
+    double tohost_input_weight_ms = 0.0;
+    double gemm_ms = 0.0;
+    double bias_tohost_ms = 0.0;
+    double bias_add_ms = 0.0;
+    double h2d_ms = 0.0;
+    if (profile) {
+        profile_tag = LinearProfileTag(profile_call, rows, in_features, out_features, bias != nullptr);
+        t_enter = std::chrono::steady_clock::now();
+        LOG(INFO) << profile_tag << " phase=enter";
+    }
+
     auto in_host = ToHostFloat(input, input->GetDevice().type());
     auto w_host = ToHostFloat(weight, weight->GetDevice().type());
     std::vector<float> out_host(static_cast<size_t>(rows * out_features));
+    if (profile) {
+        const auto t_after = std::chrono::steady_clock::now();
+        tohost_input_weight_ms = MsBetween(t_enter, t_after);
+        LOG(INFO) << profile_tag << " phase=after_tohost_input_weight"
+                  << " tohost_input_weight_ms=" << tohost_input_weight_ms;
+    }
 
     // output = input(rows,in) * weight^T(in,out)（transpose=true 时 weight 为 (out,in)）
     HostGemm(false, transpose, rows, out_features, in_features, in_host.data(), in_features, w_host.data(),
              transpose ? in_features : out_features, 0.0f, out_host.data(), out_features);
+    if (profile) {
+        const auto t_after = std::chrono::steady_clock::now();
+        gemm_ms = MsBetween(t_enter, t_after) - tohost_input_weight_ms;
+        LOG(INFO) << profile_tag << " phase=after_gemm"
+                  << " gemm_ms=" << gemm_ms;
+    }
 
     if (bias) {
+        const auto t_bias_enter = profile ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         auto b_host = ToHostFloat(bias, bias->GetDevice().type());
+        if (profile) {
+            const auto t_after = std::chrono::steady_clock::now();
+            bias_tohost_ms = MsBetween(t_bias_enter, t_after);
+            LOG(INFO) << profile_tag << " phase=after_bias_tohost"
+                      << " bias_tohost_ms=" << bias_tohost_ms;
+        }
+        const auto t_bias_add = profile ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         for (int64_t r = 0; r < rows; ++r) {
             for (int64_t j = 0; j < out_features; ++j) { out_host[r * out_features + j] += b_host[j]; }
         }
+        if (profile) {
+            const auto t_after = std::chrono::steady_clock::now();
+            bias_add_ms = MsBetween(t_bias_add, t_after);
+            LOG(INFO) << profile_tag << " phase=after_bias_add"
+                      << " bias_add_ms=" << bias_add_ms;
+        }
     }
 
+    const auto t_h2d_enter = profile ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     FromHostFloat(out_host, output, output->GetDevice().type());
+    if (profile) {
+        const auto t_done = std::chrono::steady_clock::now();
+        h2d_ms = MsBetween(t_h2d_enter, t_done);
+        LOG(INFO) << profile_tag << " phase=done"
+                  << " tohost_ms=" << (tohost_input_weight_ms + bias_tohost_ms)
+                  << " gemm_bias_ms=" << (gemm_ms + bias_add_ms) << " h2d_ms=" << h2d_ms
+                  << " total_ms=" << MsBetween(t_enter, t_done);
+    }
     if (output->Dtype() == DataType::kFLOAT32) {
         ::infini_train::core::mlu::DebugCheckTensor(output->DataPtr(), output->NumElements(),
                                                     static_cast<int>(output->Dtype()), "LinearForward");

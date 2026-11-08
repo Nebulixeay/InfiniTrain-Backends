@@ -1,7 +1,8 @@
 // 纯 BANG C kernel + 启动器（cncc 编译，只允许 C++11 级别语法，不含框架头）。
 // 框架集成见同目录 softmax.cc。
 // 语义对应上游 src/kernels/cuda/softmax.cu（沿 dim 的 max/和归约 + 归一化）。
-// 简化策略（正确性优先）：一行一个核串行归约，全程 FP32 中间精度，顺序确定。
+// 简化策略（正确性优先）：一行只由一个 task 完成，行内 max/sum/归一化保持串行归约，
+// 全程 FP32 中间精度，顺序确定。
 
 #include <stdint.h>
 
@@ -14,17 +15,27 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 注意（实测）：本工具链下 taskIdX/coreId/taskDimX/coreDim 与预期语义不符，配合
-// cnrtFuncTypeUnion1 时循环写 GDRAM 只有首尾元素落盘。厂商示例（samples/BANG/.../
-// vectoradd/0_scalarAdd_single_core）用的是纯串行循环 + cnrtFuncTypeBlock。
-// 因此所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
+// 并行度（016 核对，沿用 015 已证实的同一机制）：本工具链下 dim.x*dim.y*dim.z 是本次启动
+// 占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，
+// cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按 row = taskId、步长 taskDim
+// 分片，每个输出元素恰被一个 task 写一次，无需跨 task 同步。
+// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
+// 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd
+// 与 1_Performance/matmul 的 taskId/taskDim 切分范式。
+// 归约边界：只切 row，不切 axis —— 同一行的 max、Σexp、Σ grad·out 仍在该 task 内串行完成，
+// 顺序与单任务版逐字相同。
+// 历史记录（保留）：tests/math_selftest 的探针在 cnrtFuncTypeUnion1 + dim={1,1,1} 下报
+// cnInvokeKernel 100006 CN_ERROR_INVALID_VALUE（1 core 少于 Union1 要求的 4 core，启动被驱动
+// 拒绝），而 dim={4,1,1} 下 taskDim=1、其 “taskIdX*coreDim+coreId” 公式只覆盖 1/4 下标。
+// 故旧结论“多任务/Union1 下循环写 GDRAM 只有首尾落盘”源于错误 dim 与错误索引公式，
+// 不构成对多任务并行的否定；原始日志见协作沟通/001、015/Kimi.md 与 016/Kimi.md K-001。
 
 // 行 = (group, inner_idx) 组合，共 outer_size * inner_size 行
 template <typename T>
 __mlu_global__ void SoftmaxForwardKernel(T *output, const T *input, int64_t outer_size, int64_t axis_size,
                                          int64_t inner_size) {
     const int64_t rows = outer_size * inner_size;
-    for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t row = taskId; row < rows; row += taskDim) {
         const int64_t group = row / inner_size;
         const int64_t inner_idx = row % inner_size;
         const int64_t base = group * axis_size * inner_size + inner_idx;
@@ -52,7 +63,7 @@ template <typename T>
 __mlu_global__ void SoftmaxBackwardKernel(T *grad_input, const T *grad_output, const T *output, int64_t outer_size,
                                           int64_t axis_size, int64_t inner_size) {
     const int64_t rows = outer_size * inner_size;
-    for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t row = taskId; row < rows; row += taskDim) {
         const int64_t group = row / inner_size;
         const int64_t inner_idx = row % inner_size;
         const int64_t base = group * axis_size * inner_size + inner_idx;
@@ -70,21 +81,22 @@ __mlu_global__ void SoftmaxBackwardKernel(T *grad_input, const T *grad_output, c
     }
 }
 
+// 启动配置：Block + {4,4,1} = 16 core / 16 task（厂商 global_var 示例同形，K-001 §4/§5）。
+const cnrtDim3_t kDim = {4, 4, 1};
+
 template <typename T>
 void SoftmaxForwardTyped(void *output, const void *input, int64_t outer_size, int64_t axis_size, int64_t inner_size,
                          cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
-    SoftmaxForwardKernel<T><<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<T *>(output), static_cast<const T *>(input),
-                                                               outer_size, axis_size, inner_size);
+    SoftmaxForwardKernel<T><<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<T *>(output), static_cast<const T *>(input),
+                                                                outer_size, axis_size, inner_size);
 }
 
 template <typename T>
 void SoftmaxBackwardTyped(void *grad_input, const void *grad_output, const void *output, int64_t outer_size,
                           int64_t axis_size, int64_t inner_size, cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
     SoftmaxBackwardKernel<T>
-        <<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<T *>(grad_input), static_cast<const T *>(grad_output),
-                                            static_cast<const T *>(output), outer_size, axis_size, inner_size);
+        <<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<T *>(grad_input), static_cast<const T *>(grad_output),
+                                             static_cast<const T *>(output), outer_size, axis_size, inner_size);
 }
 
 #define MLU_SM_FLOAT_SWITCH(fn, ...)                                                                                   \

@@ -62,3 +62,98 @@ They are recorded for traceability and were **not** re-executed for this layout 
 4. multi-card: CNCL registration and a 2-card DP milestone;
 5. wire the shared InfiniTrain test suites and run a MACA/CUDA regression before claiming
    cross-provider compatibility.
+
+## Strict loss acceptance tool (2026-11-03, this provider layout)
+
+`backends/mlu/tools/compare_loss_strict.py` compares a run's per-step loss against the frozen
+reference and decides pass/fail/reject on host only. It was migrated from the earlier prototype
+tree (`InfiniTrain-Backends/tools/`, kept read-only) and fixed there; the prototype is not part of
+this provider.
+
+Verified on 2026-11-03 with the bundled Python (3.14.2) on Windows, no device and no training:
+
+| Item | Result |
+|---|---|
+| Selftest `backends/mlu/tools/tests/test_compare_loss_strict.py` | `PASS (66/66 cases)`, rc=0, ~9 s. The count grows with added regressions: 54 cases in the first round, 62 after the schema/rank fixes, 66 after the config-type and reference-provenance fixes |
+| Formatting | `scripts/format.py --path backends/mlu/tools --check --py <black 26.1.0>` rc=0 (isolated venv, not a repo dependency) |
+| Real registry (formal mode) | rc=3 `formal mode rejects unknown_fields=['weights_sha256','data_sha256']` — the raw log hash, the single-case hash, the case derivation and the 10 registered steps are all validated before that gate, and the run then stops because the A100 asset hashes are still unknown |
+| Reference provenance | the single-case file must be byte-identical to the segment cut from the raw log at the unique `Running: gpt2_1 (fp32)` title; a duplicate title, a tampered case file or a missing raw log are rejected |
+
+Notes on the decision contract:
+
+- `criterion_source=user_pdf_and_a100_log` (FP32 `max_abs<=1e-5`, BF16 `max_rel<=1e-2`) and
+  `comparison_policy_source=program_convention` (error denominator, zero reference, `<=` boundary)
+  are reported separately in the terminal output and in the JSON.
+- Formal mode never falls back to registry numbers: the registry `steps` only cross-check the
+  parsed log values and must match exactly.
+- Schema and identity formats are validated before any comparison: `source_commit` must be a full
+  40-hex token on both the actual metadata and the registered reference case, `binary_sha256` and
+  the asset hashes a full 64-hex token (trailing characters are rejected), the actual metadata /
+  registry / config / `unknown_fields` must have the documented container types, and a `--rank`
+  run refuses to mix tagged and untagged loss records. Config fields that are numeric by meaning
+  (`batch_size`, `sequence_length`, `total_batch_size`, `learning_rate`) are type-checked on both
+  sides before any comparison, so a bool/string/`null` there is a rejection rather than a silent
+  coercion. Structural or type errors are reported as `REJECTED` with rc=3, never as a traceback.
+- Diagnostic mode prints `DIAGNOSTIC_MATCH`/`DIAGNOSTIC_FAIL` only, with `acceptance_ready=false`.
+- A BF16 row with a zero reference and a non-zero actual yields `rel_diff = inf`, so the JSON
+  contains the non-standard token `Infinity`. It never raises, but strict JSON parsers reject it;
+  the output contract is left unchanged on purpose.
+- The A100 log and its single-case derivation are redistributed under the upstream MIT license
+  (`references/LICENSE.InfiniTrain-Test`, `InfiniTensor/InfiniTrain-Test@5a0f27a5`).
+- This tool only proves the acceptance logic. It is **not** evidence that GPT-2 FP32 ten steps or
+  any accuracy target has passed; the assets (`weights_sha256`, `data_sha256`) are still unknown.
+
+## Key backward cases in `op_test` (source prepared; build/device pending)
+
+Added on 2026-11-03 under 007-P1 v2 / 007-P2 v1. **Nothing here has been compiled or run** on this
+Windows workspace; the MLU build and device execution need a separate, explicitly authorized
+server batch. No PASS result for these new cases exists yet.
+
+- New entry point: `op_test --backward-group a|b|all`. Default behaviour is unchanged: without that
+  flag the existing suite still runs exactly as before. An unknown group value, or combining the
+  flag with `--comparator-selftest` / `--debug-status-test` / `--probe-case`, exits with rc=2 before
+  the backend is registered.
+- Group A: `EmbeddingBackward` (repeated tokens, unused rows must stay exactly zero),
+  `CrossEntropyBackward` (`[8,32]` and `[1,32]`, scalar upstream gradient `g=0.5`),
+  `AccumulateGrad` (in place, `rate=+0.5` for gradient accumulation and `rate=-0.5` for the SGD
+  update role; kernel-level semantics, not the training accumulation rate).
+- Group B: `SoftmaxBackward` (`dim=1`, finite / `-inf` mask / `float32_lowest` mask, every row keeps
+  at least one unmasked logit; masked columns must have probability and gradient **exactly 0** and
+  finite; both the CPU and the MLU forward outputs are guards-checked and finiteness-checked before
+  they are fed to a backward call, and a non-finite forward output records a failure and skips that
+  mask instead of polluting the gradient), `LayerNormBackward` (3D input `[1,2,4]`, `mean`/`rstd`
+  must be FP32 `[1,2]`, three gradients checked separately against both the CPU kernel and the
+  upstream expected values), `MatmulBackwardInput/Other` (2D and batched, dA and dB separately).
+- Comparison: existing `Compare(name, ref, got, atol, 0.0, allow_special_ref=false)` — absolute
+  threshold only, `rtol=0`, no special-value allowance for the new cases. Every CPU and MLU return
+  value (including intermediate `mean`/`rstd`, the softmax forward output used as a backward input,
+  and the in-place target after an `AccumulateGrad` call on either device) is checked for
+  null/shape/dtype before it is read or fed to the next kernel; size and analytic-reference
+  finiteness (including the double→float cast) are checked before `Compare`, and any failure sets
+  the failure flag without touching the data, so the process exits non-zero.
+- Data movement: the blocking `ToHost` helper is used for every device-to-host read, inside an
+  explicit `DeviceGuard` for the MLU device. `ToHost` returns a `std::vector<float>`; the void
+  return that cannot report its own exit code is the inner `MluGuardImpl::Memcpy`
+  (`cnrtMemcpyAsync` on the current queue followed by `cnrtQueueSync`, failures raised by
+  `CNRT_CHECK`). Each MLU case logs its own `[bwd] case=... device=... stream=...
+  sync=blocking_Memcpy_current_queue host_read_after_tohost_returned` line only **after** the
+  relevant read-backs have returned (LayerNorm logs after all three gradients were copied out).
+  `Tensor::To(kCPU)` is deliberately **not** used: its D2H path only enqueues the copy.
+- Negative paths: `--inject-finite` / `--inject-nan` apply to a copy of the compared result vector
+  and must still end in a non-zero exit; they never modify the CPU or analytic reference.
+- Not formatted: `clang-format-16` is not available in this workspace, so the new C++ has **not**
+  been format-checked yet; this must be done before the server build.
+
+## GPT-2 single-card follow-up (2026-11-06)
+
+- FP32 completed all 10 training steps on one MLU. With the gradient accumulation
+  optimization, the median gap between logged steps fell from about 47.8 s to
+  23.9 s, and all 10 reported losses matched the previous MLU run exactly.
+  The comparison against the A100 reference remains diagnostic and exceeds the
+  FP32 acceptance threshold.
+- BF16 autocast completed the forward pass after parallelizing Cast. Backward
+  stopped at a gradient merge in Function::BackwardPartial because an FP32
+  gradient was being added to a BF16 buffer. A complete BF16 step remains open.
+- These are staged-run observations from the corresponding changes. The branch
+  keeps the existing InfiniTrain submodule revision and the original accuracy
+  thresholds.

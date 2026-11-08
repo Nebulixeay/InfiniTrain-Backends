@@ -1,7 +1,7 @@
 // 纯 BANG C kernel + 启动器（cncc 编译，只允许 C++11 级别语法，不含框架头）。
 // 框架集成见同目录 cross_entropy.cc。
 // 语义对应上游 src/kernels/cuda/cross_entropy.cu：max/sum 归约全程 FP32。
-// 简化策略（正确性优先）：一个样本一个核，串行归约，顺序确定。
+// 简化策略（正确性优先）：一个样本只由一个 task 完成，样本内归约串行，顺序确定。
 // 注意：CUDA 版前向的批均值是在 host 侧 FP64 累加的（见其 FIXME 注释），
 // 本 kernel 只产出每样本 loss，批均值同样在 host 侧做（见 cross_entropy.cc）。
 
@@ -16,15 +16,33 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
+// 020：NRAM 暂存块元素数。float 下为 32 KiB，远小于厂商示例声明的 393216 B（
+// 1_Performance/vectoradd/4_vectorAdd_multicore/vectorAdd_multicore.mlu:41 MAX_NRAM_SIZE），
+// 且为 128 B（NFU 对齐单位）的整数倍；50257 个类 → 6 个整块 + 1 个 1105 元素尾块。
+constexpr int64_t kNramChunkElems = 8192;
+
 // 注意（实测）：本工具链下 taskIdX/coreId/taskDimX/coreDim 与预期语义不符，配合
 // cnrtFuncTypeUnion1 时循环写 GDRAM 只有首尾元素落盘。厂商示例（samples/BANG/.../
 // vectoradd/0_scalarAdd_single_core）用的是纯串行循环 + cnrtFuncTypeBlock。
-// 因此所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
+// 因此历史上所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
+
+// 并行度（017 核对，沿用 015 已证实、016 已复核的同一机制）：本工具链下 dim.x*dim.y*dim.z 是
+// 本次启动占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock
+// 为 1，cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按 sample = taskId、步长
+// taskDim 分片，每个 loss[sample]/grad_row[i] 恰被一个 task 写一次，无需跨 task 同步。
+// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
+// 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd
+// 与 1_Performance/matmul 的 taskId/taskDim 切分范式。
+// 归约边界（017）：只切 sample，不切 class —— 同一样本的 max 扫描、Σexp 以及反向的 class
+// 循环仍在该 task 内串行完成，顺序与单任务版逐字相同，故结果与单任务版逐位相同。
+// 历史记录（保留）：上文的“单任务串行”结论源于 cnrtFuncTypeUnion1 + 错误 dim 与
+// “taskIdX*coreDim+coreId” 索引公式的误判，不是对多任务并行的否定；重新核对见
+// 协作沟通/015/Kimi.md K-001 §3 与 017/Kimi.md K-001 §4。
 
 template <typename Ttarget, typename Tinput>
 __mlu_global__ void CrossEntropyForwardKernel(const Tinput *input, const Ttarget *target, Tinput *loss, int64_t bs,
                                               int64_t num_classes) {
-    for (int64_t sample = 0; sample < bs; ++sample) {
+    for (int64_t sample = taskId; sample < bs; sample += taskDim) {
         const Tinput *row = input + sample * num_classes;
 
         float max_logit = -__builtin_inff();
@@ -41,47 +59,77 @@ __mlu_global__ void CrossEntropyForwardKernel(const Tinput *input, const Ttarget
     }
 }
 
+// 020：backward 的逐元素 GDRAM 标量访问改为“整块 DMA + NRAM 内标量计算”。
+// 并行分片（017）不变：仍按 sample = taskId、步长 taskDim 切，归约边界不变。
+// 依据（均来自本机安装的厂商示例，逐行核对）：1_Performance/vectoradd/4_vectorAdd_multicore/
+// vectorAdd_multicore.mlu:59-64 的 __memcpy(a_nram, a_offset, len*sizeof(float), GDRAM2NRAM) →
+// __bang_add → __memcpy(output_offset, ..., NRAM2GDRAM) 批量搬运范式；0_Concepts_and_Techniques/
+// convolution/main.mlu:76-84 在 kernel 内声明定长 __nram__ 数组并配合两次 __memcpy。
+// 本 kernel 只采用“批量搬运”这一条已被示例证明的语义，不使用 __bang_* 向量算子：向量 exp 与标量
+// expf 的数值等价性没有官方证据（020/Kimi.md K-001 §3），故不引入。
+// 因此每个元素的浮点运算次数、顺序与类型转换位置与改造前逐字相同（同一 sample 内仍按 i 升序、
+// 先 max 后 Σexp 再写梯度，expf 调用两次），改变的只是标量访问落在 NRAM 还是 GDRAM 上，
+// 结果应逐位不变。
 template <typename Ttarget, typename Tinput>
 __mlu_global__ void CrossEntropyBackwardKernel(const Tinput *input, Tinput *grad_input, const Ttarget *target,
                                                const Tinput *grad_output, int64_t bs, int64_t num_classes) {
+    __nram__ Tinput staging[kNramChunkElems];
     const float inv_bs = 1.0f / bs;
     const float grad_scale = static_cast<float>(grad_output[0]);
-    for (int64_t sample = 0; sample < bs; ++sample) {
+    for (int64_t sample = taskId; sample < bs; sample += taskDim) {
         const Tinput *row = input + sample * num_classes;
         Tinput *grad_row = grad_input + sample * num_classes;
 
         float max_logit = -__builtin_inff();
-        for (int64_t i = 0; i < num_classes; ++i) {
-            const float v = static_cast<float>(row[i]);
-            max_logit = v > max_logit ? v : max_logit;
+        for (int64_t off = 0; off < num_classes; off += kNramChunkElems) {
+            const int64_t remaining = num_classes - off;
+            const int64_t len = remaining < kNramChunkElems ? remaining : kNramChunkElems;
+            __memcpy(staging, row + off, static_cast<uint32_t>(len * sizeof(Tinput)), GDRAM2NRAM);
+            for (int64_t i = 0; i < len; ++i) {
+                const float v = static_cast<float>(staging[i]);
+                max_logit = v > max_logit ? v : max_logit;
+            }
         }
+
         float sum_exp = 0.0f;
-        for (int64_t i = 0; i < num_classes; ++i) { sum_exp += expf(static_cast<float>(row[i]) - max_logit); }
+        for (int64_t off = 0; off < num_classes; off += kNramChunkElems) {
+            const int64_t remaining = num_classes - off;
+            const int64_t len = remaining < kNramChunkElems ? remaining : kNramChunkElems;
+            __memcpy(staging, row + off, static_cast<uint32_t>(len * sizeof(Tinput)), GDRAM2NRAM);
+            for (int64_t i = 0; i < len; ++i) { sum_exp += expf(static_cast<float>(staging[i]) - max_logit); }
+        }
 
         const int64_t target_class = static_cast<int64_t>(target[sample]);
         const float scale = 1.0f / sum_exp;
-        for (int64_t i = 0; i < num_classes; ++i) {
-            const float exp_val = expf(static_cast<float>(row[i]) - max_logit);
-            grad_row[i]
-                = static_cast<Tinput>((exp_val * scale - (i == target_class ? 1.0f : 0.0f)) * inv_bs * grad_scale);
+        for (int64_t off = 0; off < num_classes; off += kNramChunkElems) {
+            const int64_t remaining = num_classes - off;
+            const int64_t len = remaining < kNramChunkElems ? remaining : kNramChunkElems;
+            __memcpy(staging, row + off, static_cast<uint32_t>(len * sizeof(Tinput)), GDRAM2NRAM);
+            for (int64_t i = 0; i < len; ++i) {
+                const float exp_val = expf(static_cast<float>(staging[i]) - max_logit);
+                const float target_term = off + i == target_class ? 1.0f : 0.0f;
+                staging[i] = static_cast<Tinput>((exp_val * scale - target_term) * inv_bs * grad_scale);
+            }
+            __memcpy(grad_row + off, staging, static_cast<uint32_t>(len * sizeof(Tinput)), NRAM2GDRAM);
         }
     }
 }
 
+// 启动配置：Block + {4,4,1} = 16 core / 16 task（厂商 global_var 示例同形，K-001 §4）。
+const cnrtDim3_t kDim = {4, 4, 1};
+
 template <typename Ttarget, typename Tinput>
 void CrossEntropyForwardTyped(const void *input, const void *target, void *loss, int64_t bs, int64_t num_classes,
                               cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
     CrossEntropyForwardKernel<Ttarget, Tinput>
-        <<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<const Tinput *>(input), static_cast<const Ttarget *>(target),
-                                            static_cast<Tinput *>(loss), bs, num_classes);
+        <<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<const Tinput *>(input), static_cast<const Ttarget *>(target),
+                                             static_cast<Tinput *>(loss), bs, num_classes);
 }
 
 template <typename Ttarget, typename Tinput>
 void CrossEntropyBackwardTyped(const void *input, void *grad_input, const void *target, const void *grad_output,
                                int64_t bs, int64_t num_classes, cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
-    CrossEntropyBackwardKernel<Ttarget, Tinput><<<dim, cnrtFuncTypeBlock, queue>>>(
+    CrossEntropyBackwardKernel<Ttarget, Tinput><<<kDim, cnrtFuncTypeBlock, queue>>>(
         static_cast<const Tinput *>(input), static_cast<Tinput *>(grad_input), static_cast<const Ttarget *>(target),
         static_cast<const Tinput *>(grad_output), bs, num_classes);
 }

@@ -12,10 +12,19 @@
 namespace {
 constexpr uint32_t kDefaultTaskCount = 4;
 
+// 并行度（019，沿用 015 已证实、016/017 已复核的同一机制）：本工具链下 dim.x*dim.y*dim.z 是本次
+// 启动占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，
+// cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。两个 kernel 的循环体只读写同一 idx 上的
+// grad/tensor（以及 Adam 的 m/v/param），既没有跨元素归约也没有跨元素写，因此按 i = taskId、步长
+// taskDim 分片可保证每个元素恰被一个 task 读写一次，结果与单任务版逐位相同，无需跨 task 同步。
+// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，用
+// taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd 与
+// 1_Performance/matmul 的 taskId/taskDim 切分范式。
+
 template <typename T>
 __mlu_global__ void AccumulateGradKernel(const T *grad_ptr, float rate, T *tensor_ptr, int64_t num_elements) {
 
-    for (int64_t idx = 0; idx < num_elements; ++idx) {
+    for (int64_t idx = taskId; idx < num_elements; idx += taskDim) {
         tensor_ptr[idx]
             = static_cast<T>(static_cast<float>(tensor_ptr[idx]) + static_cast<float>(grad_ptr[idx]) * rate);
     }
@@ -26,7 +35,7 @@ __mlu_global__ void AdamAccumulateGradKernel(const T *grad_data, T *param_data, 
                                              T *v_data, float learning_rate, float beta1, float beta2, float eps,
                                              float bias_correction_m, float bias_correction_v) {
 
-    for (int64_t idx = 0; idx < num_elements; ++idx) {
+    for (int64_t idx = taskId; idx < num_elements; idx += taskDim) {
         const float g = static_cast<float>(grad_data[idx]);
         const float m = beta1 * static_cast<float>(m_data[idx]) + (1.0f - beta1) * g;
         const float v = beta2 * static_cast<float>(v_data[idx]) + (1.0f - beta2) * g * g;
@@ -42,19 +51,23 @@ __mlu_global__ void AdamAccumulateGradKernel(const T *grad_data, T *param_data, 
     }
 }
 
+// 启动配置：cnrtFuncTypeBlock 下一个 core 执行一个 task；dim.x*dim.y*dim.z 为本次启动的 task 数，
+// 内核按 taskId/taskDim 分片，故每个元素只被一个 task 读写。
+// 024：{4,8,1} = 32 个 task，属用户授权的未证候选试验（厂商示例只到 global_var 的 Block +
+// dim={4,4,1}=16，无更大 Block 维度的示例或文档支持）；taskDim 是否真的变为 32 未直接观测。
+const cnrtDim3_t kDim = {4, 8, 1};
+
 template <typename T>
 void AccumulateGradTyped(const void *grad, float rate, void *tensor, int64_t num_elements, cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
-    AccumulateGradKernel<T>
-        <<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<const T *>(grad), rate, static_cast<T *>(tensor), num_elements);
+    AccumulateGradKernel<T><<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<const T *>(grad), rate,
+                                                                static_cast<T *>(tensor), num_elements);
 }
 
 template <typename T>
 void AdamAccumulateGradTyped(const void *grad, void *param, void *m, void *v, float learning_rate, float beta1,
                              float beta2, float eps, float bias_correction_m, float bias_correction_v,
                              int64_t num_elements, cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
-    AdamAccumulateGradKernel<T><<<dim, cnrtFuncTypeBlock, queue>>>(
+    AdamAccumulateGradKernel<T><<<kDim, cnrtFuncTypeBlock, queue>>>(
         static_cast<const T *>(grad), static_cast<T *>(param), num_elements, static_cast<T *>(m), static_cast<T *>(v),
         learning_rate, beta1, beta2, eps, bias_correction_m, bias_correction_v);
 }

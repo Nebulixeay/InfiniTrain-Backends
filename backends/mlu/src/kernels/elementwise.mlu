@@ -19,10 +19,18 @@ using infini_train::kernels::mlu::MluUnaryOp;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 注意（实测）：本工具链下 taskIdX/coreId/taskDimX/coreDim 与预期语义不符，配合
-// cnrtFuncTypeUnion1 时循环写 GDRAM 只有首尾元素落盘。厂商示例（samples/BANG/.../
-// vectoradd/0_scalarAdd_single_core）用的是纯串行循环 + cnrtFuncTypeBlock。
-// 因此所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
+// 并行度（015 核对）：本工具链下 dim.x*dim.y*dim.z 是本次启动占用的 MLU core 数，
+// taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，cnrt.h:160-182），
+// taskId ∈ [0, taskDim) 且各 task 唯一。因此按 i = taskId、步长 taskDim 分片，可保证
+// 每个输出元素恰被一个 task 写一次，无需跨 task 同步。
+// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
+// 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd
+// 与 1_Performance/matmul 的 taskId/taskDim 切分范式。
+// 历史记录（保留）：tests/math_selftest 的探针在 cnrtFuncTypeUnion1 + dim={1,1,1} 下报
+// cnInvokeKernel 100006 CN_ERROR_INVALID_VALUE（1 core 少于 Union1 要求的 4 core，启动被驱动
+// 拒绝），而 dim={4,1,1} 下 taskDim=1、其 “taskIdX*coreDim+coreId” 公式只覆盖 1/4 下标。
+// 故旧结论“多任务/Union1 下循环写 GDRAM 只有首尾落盘”源于错误 dim 与错误索引公式，
+// 不构成对多任务并行的否定；原始日志见协作沟通/001 与 015/Kimi.md。
 
 // 与 CUDA 版 CalcOffset 相同：把 out 的线性下标映射到广播输入的偏移
 __mlu_func__ int64_t CalcOffset(int64_t idx, int ndim, const int64_t *strides, const int64_t *shape,
@@ -87,38 +95,52 @@ __mlu_func__ float UnaryBwdEval(MluUnaryOp op, float g, float aux) {
 }
 
 template <typename T> __mlu_global__ void UnaryForwardKernel(T *out, const T *in, MluUnaryOp op, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) { out[i] = static_cast<T>(UnaryFwdEval(op, static_cast<float>(in[i]))); }
+    for (int64_t i = taskId; i < n; i += taskDim) {
+        out[i] = static_cast<T>(UnaryFwdEval(op, static_cast<float>(in[i])));
+    }
 }
 
 template <typename T>
 __mlu_global__ void UnaryBackwardKernel(T *grad_in, const T *grad_out, const T *aux, MluUnaryOp op, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) {
+    for (int64_t i = taskId; i < n; i += taskDim) {
         grad_in[i] = static_cast<T>(UnaryBwdEval(op, static_cast<float>(grad_out[i]), static_cast<float>(aux[i])));
     }
 }
 
-// 说明：设备侧 powf 在「单任务串行 + cnrtFuncTypeBlock」启动下已实测可用
-// （tests/math_selftest：powf(x,3) 与 host 参考最大绝对误差 1.91e-06，bad=0/1024）。
-// 历史上“powf 返回 NaN”的结论源于错误的多任务/Union1 启动配置，已作废。
+// 说明：设备侧 powf 已实测可用（tests/math_selftest，Block 启动：powf(x,3) 与 host 参考最大
+// 绝对误差 1.91e-06，bad=0/1024）。历史上“powf 返回 NaN”的结论源于非法的 Union1 dim
+// 配置（1 core < Union1 要求的 4 core，启动被驱动拒绝），已作废；015 起该 kernel 同其它
+// kernel 一样按 taskId/taskDim 多任务分片。
 template <typename T>
 __mlu_global__ void PowForwardKernel(T *out, const T *in, float exponent, bool scalar_is_base, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) {
+    for (int64_t i = taskId; i < n; i += taskDim) {
         const float x = static_cast<float>(in[i]);
-        out[i] = static_cast<T>(scalar_is_base ? powf(exponent, x) : powf(x, exponent));
+        if (!scalar_is_base && exponent == 3.0f) {
+            // NewGELU always requests x^3; avoid the expensive generic powf path.
+            out[i] = static_cast<T>(x * x * x);
+        } else {
+            out[i] = static_cast<T>(scalar_is_base ? powf(exponent, x) : powf(x, exponent));
+        }
     }
 }
 
 template <typename T>
 __mlu_global__ void PowBackwardKernel(T *grad_in, const T *grad_out, const T *in, float exponent, bool scalar_is_base,
                                       int64_t n) {
-    for (int64_t i = 0; i < n; ++i) {
+    for (int64_t i = taskId; i < n; i += taskDim) {
         const float g = static_cast<float>(grad_out[i]);
         const float x = static_cast<float>(in[i]);
         // scalar_is_base: d(base^x)/dx = base^x * ln(base)
         // 否则:           d(x^e)/dx   = e * x^(e-1)
-        const float v
-            = scalar_is_base ? g * powf(exponent, x) * logf(exponent) : g * exponent * powf(x, exponent - 1.0f);
-        grad_in[i] = static_cast<T>(v);
+        if (!scalar_is_base && exponent == 3.0f) {
+            // NewGELU always requests x^3, so e * x^(e-1) is 3 * x^2; avoid the expensive
+            // generic powf path, mirroring the x*x*x fast path in PowForwardKernel.
+            grad_in[i] = static_cast<T>(g * exponent * (x * x));
+        } else {
+            const float v
+                = scalar_is_base ? g * powf(exponent, x) * logf(exponent) : g * exponent * powf(x, exponent - 1.0f);
+            grad_in[i] = static_cast<T>(v);
+        }
     }
 }
 
@@ -171,7 +193,7 @@ __mlu_func__ float BinaryBwdEvalB(MluBinaryOp op, float g, float a, float b) {
 template <typename T>
 __mlu_global__ void BinaryForwardKernel(T *out, const T *a, const T *b, MluBinaryOp op, MluBroadcastMeta meta,
                                         int64_t n) {
-    for (int64_t i = 0; i < n; ++i) {
+    for (int64_t i = taskId; i < n; i += taskDim) {
         const int64_t a_off = CalcOffset(i, meta.ndim, meta.a_strides, meta.a_shape, meta.out_strides);
         const int64_t b_off = CalcOffset(i, meta.ndim, meta.b_strides, meta.b_shape, meta.out_strides);
         out[i] = static_cast<T>(BinaryFwdEval(op, static_cast<float>(a[a_off]), static_cast<float>(b[b_off])));
@@ -182,7 +204,7 @@ __mlu_global__ void BinaryForwardKernel(T *out, const T *a, const T *b, MluBinar
 template <typename T>
 __mlu_global__ void BinaryBackwardNoBroadcastKernel(T *grad_a, T *grad_b, const T *grad_out, const T *a, const T *b,
                                                     MluBinaryOp op, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) {
+    for (int64_t i = taskId; i < n; i += taskDim) {
         const float g = static_cast<float>(grad_out[i]);
         const float av = static_cast<float>(a[i]);
         const float bv = static_cast<float>(b[i]);
@@ -199,7 +221,7 @@ __mlu_global__ void BinaryBackwardReduceKernel(T *grad_dst, const T *grad_out, c
     const int64_t *dst_shape = kSideA ? meta.a_shape : meta.b_shape;
     const int64_t *dst_strides = kSideA ? meta.a_strides : meta.b_strides;
 
-    for (int64_t i = 0; i < numel_dst; ++i) {
+    for (int64_t i = taskId; i < numel_dst; i += taskDim) {
         // 分解 i 到 dst（右对齐后）各维坐标
         int64_t coord[MLU_MAX_BROADCAST_DIMS];
         for (int d = 0; d < meta.ndim; ++d) { coord[d] = dst_shape[d] > 1 ? (i / dst_strides[d]) % dst_shape[d] : 0; }
@@ -244,12 +266,14 @@ __mlu_global__ void BinaryBackwardReduceKernel(T *grad_dst, const T *grad_out, c
 
 template <typename T>
 __mlu_global__ void ScalarForwardKernel(T *out, const T *in, float scalar, MluBinaryOp op, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) { out[i] = static_cast<T>(BinaryFwdEval(op, static_cast<float>(in[i]), scalar)); }
+    for (int64_t i = taskId; i < n; i += taskDim) {
+        out[i] = static_cast<T>(BinaryFwdEval(op, static_cast<float>(in[i]), scalar));
+    }
 }
 
 template <typename T>
 __mlu_global__ void ScalarBackwardKernel(T *grad_in, const T *grad_out, float scalar, MluBinaryOp op, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) {
+    for (int64_t i = taskId; i < n; i += taskDim) {
         const float g = static_cast<float>(grad_out[i]);
         // Add: grad = g；Mul: grad = g * scalar
         grad_in[i] = static_cast<T>(op == MluBinaryOp::kMul ? g * scalar : g);
@@ -260,7 +284,7 @@ __mlu_global__ void ScalarBackwardKernel(T *grad_in, const T *grad_out, float sc
 
 template <typename T>
 __mlu_global__ void EqualsForwardKernel(bool *out, const T *a, const T *b, MluBroadcastMeta meta, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) {
+    for (int64_t i = taskId; i < n; i += taskDim) {
         const int64_t a_off = CalcOffset(i, meta.ndim, meta.a_strides, meta.a_shape, meta.out_strides);
         const int64_t b_off = CalcOffset(i, meta.ndim, meta.b_strides, meta.b_shape, meta.out_strides);
         out[i] = a[a_off] == b[b_off];
@@ -268,12 +292,15 @@ __mlu_global__ void EqualsForwardKernel(bool *out, const T *a, const T *b, MluBr
 }
 
 template <typename T> __mlu_global__ void EqualsScalarForwardKernel(bool *out, const T *in, T scalar, int64_t n) {
-    for (int64_t i = 0; i < n; ++i) { out[i] = in[i] == scalar; }
+    for (int64_t i = taskId; i < n; i += taskDim) { out[i] = in[i] == scalar; }
 }
 
 // ----------------------------- 启动器 -----------------------------
 
-const cnrtDim3_t kDim = {1, 1, 1};
+// 启动配置：cnrtFuncTypeBlock 下一个 core 执行一个 task；dim.x*dim.y*dim.z = 16 个 task，
+// 与厂商 samples/BANG/0_Concepts_and_Techniques/global_var（Block + dim={4,4,1}，逐个校验
+// taskId 0..15）同一形状。内核按 taskId/taskDim 分片，故每个元素只被一个 task 写。
+const cnrtDim3_t kDim = {4, 4, 1};
 
 template <typename T> void UnaryForwardTyped(void *out, const void *in, MluUnaryOp op, int64_t n, cnrtQueue_t queue) {
     UnaryForwardKernel<T><<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<T *>(out), static_cast<const T *>(in), op, n);

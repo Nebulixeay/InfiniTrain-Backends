@@ -13,9 +13,19 @@
 namespace {
 constexpr uint32_t kDefaultTaskCount = 4;
 
+// 031：并行度（沿用 015/016/017 已证实、019/020/024 复核的同一机制）：本工具链下
+// dim.x*dim.y*dim.z 是本次启动占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数
+// （cnrtFuncTypeBlock 为 1），taskId ∈ [0, taskDim) 且各 task 唯一。CastKernel 是纯逐元素转换，
+// 既无跨元素归约也无跨元素写，因此按 idx = taskId、步长 taskDim 分片可保证每个元素恰被一个 task
+// 读写一次，结果与单任务版逐位相同（16 位浮点仍经 float 中转，表达式不变）。
+// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
+// 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验）。更大 Block 维度无厂商示例/文档支持，
+// 记 PARALLEL_UNPROVEN，本次不使用。
+const cnrtDim3_t kDim = {4, 4, 1};
+
 template <typename Tdst, typename Tsrc> __mlu_global__ void CastKernel(Tdst *dst, const Tsrc *src, int64_t size) {
 
-    for (int64_t idx = 0; idx < size; ++idx) {
+    for (int64_t idx = taskId; idx < size; idx += taskDim) {
         constexpr bool src_reduced = std::is_same_v<Tsrc, half> || std::is_same_v<Tsrc, bfloat16_t>;
         constexpr bool dst_reduced = std::is_same_v<Tdst, half> || std::is_same_v<Tdst, bfloat16_t>;
         if constexpr (src_reduced || dst_reduced) {
@@ -30,9 +40,8 @@ template <typename Tdst, typename Tsrc> __mlu_global__ void CastKernel(Tdst *dst
 
 template <typename Tdst, typename Tsrc>
 void CastTyped(void *dst, const void *src, int64_t num_elements, cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
     CastKernel<Tdst, Tsrc>
-        <<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<Tdst *>(dst), static_cast<const Tsrc *>(src), num_elements);
+        <<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<Tdst *>(dst), static_cast<const Tsrc *>(src), num_elements);
 }
 
 #define MLU_CAST_SRC_SWITCH(Tdst)                                                                                      \
