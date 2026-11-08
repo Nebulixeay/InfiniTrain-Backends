@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "notes": [
+    "主参考=用户指定 PDF 及其引用的 InfiniTrain-Test A100 日志；PDF 只给 step1 与 10 步区间，完整轨迹取自 A100 原始日志",
+    "exit_code=public_reference_exit_unknown：公开历史日志没有进程退出码，不伪造 0",
+    "阈值来源 criterion_source=user_pdf_and_a100_log；相对误差分母/零参考/<=边界属 comparison_policy_source=program_convention",
+    "本文件所有相对路径以 registry 文件所在目录解析，不依赖当前工作目录，也不引用本机或协作目录路径",
+    "参考日志按上游 MIT 许可随附 references/LICENSE.InfiniTrain-Test 保留版权声明"
+  ],
+  "pdf": {
+    "filename": "InfiniTrain Baseline MLU 适配验证 — 对比报告.pdf",
+    "sha256": "4beccddc9214ebfda53c80508550daca937f926908b32cd2c3114bd84642f4e0",
+    "note": "用户在会话中提供的对比报告，未随仓库分发；仅登记文件名与 hash 供追溯"
+  },
+  "comparison_policy": {
+    "fp32": {
+      "metric": "max_abs",
+      "limit": 1e-05
+    },
+    "bf16": {
+      "metric": "max_rel",
+      "limit": 0.01
+    },
+    "zero_reference": "ref==0 时 actual==0 记 0，否则相对误差视为无穷并按不达标处理",
+    "boundary": "<= 边界包含等号，恰好等于 limit 记为通过",
+    "criterion_source": "user_pdf_and_a100_log",
+    "comparison_policy_source": "program_convention"
+  },
+  "cases": {
+    "gpt2_1": {
+      "dtype": "fp32",
+      "role": "primary",
+      "reference_kind": "public_pdf_and_log",
+      "log_path": "references/a100_pytorch_training_5a0f27a5.log",
+      "log_url": "https://raw.githubusercontent.com/InfiniTensor/InfiniTrain-Test/5a0f27a5c4e26498f6fa0a6421aff4a989d78617/baseline/pytorch/logs/qy_a100_g3025/result_pytorch_training.log",
+      "log_sha256": "f1a1c5b1467a379c6c5866797ea0b351cd4aa326df5cb7f27c5a5ce3c48555f0",
+      "exit_code": "public_reference_exit_unknown",
+      "steps": {
+        "1": 5.356192,
+        "2": 5.060585,
+        "3": 4.860328,
+        "4": 4.96131,
+        "5": 4.888239,
+        "6": 5.099205,
+        "7": 4.860473,
+        "8": 4.94507,
+        "9": 5.121134,
+        "10": 5.270753
+      },
+      "config": {
+        "batch_size": 4,
+        "sequence_length": 64,
+        "total_batch_size": 256,
+        "learning_rate": 0.0001,
+        "optimizer": "sgd",
+        "overfit_single_batch": true,
+        "weights": "gpt2_124M.bin",
+        "data": "tiny_shakespeare_train.bin",
+        "lr_schedule": "constant",
+        "weights_sha256": "unknown",
+        "data_sha256": "unknown"
+      },
+      "unknown_fields": [
+        "weights_sha256",
+        "data_sha256"
+      ],
+      "source_notes": "10 步数值与 PDF step1 5.356192 一致；PDF 中 5.356194 是同事 MLU 侧数值，不作参考",
+      "source_commit": "5a0f27a5c4e26498f6fa0a6421aff4a989d78617",
+      "downloaded_at": "2026-10-30T16:47:00+08:00",
+      "case_log_path": "references/derived_gpt2_1_fp32_a100_5a0f27a5.log",
+      "case_log_sha256": "92a03bdbaab4235aebee24761ad5d689ebd9835c27aea77f5d45060910dd761c",
+      "case_extract_title": "Running: gpt2_1 (fp32)",
+      "case_extract_rule": "在 raw 全日志中查找与 case_extract_title 完全相同的整行（区分大小写、含空格与 (fp32) 后缀），要求唯一命中；该行下一行必须是纯 '=' 装饰行；片段从标题行开始，到下一个'下一行为 Running: 开头的 '=' 装饰行'之前结束（EOF 处允许以装饰行收尾）。片段必须与 case_log_path 逐字节相同。",
+      "license": "references/LICENSE.InfiniTrain-Test (MIT, Copyright (c) 2026 InfiniTensor)"
+    },
+    "gpt2_1_bf16": {
+      "dtype": "bf16",
+      "role": "diagnostic",
+      "reference_kind": "public_pdf_and_log",
+      "log_path": "references/a100_pytorch_training_5a0f27a5.log",
+      "log_url": "https://raw.githubusercontent.com/InfiniTensor/InfiniTrain-Test/5a0f27a5c4e26498f6fa0a6421aff4a989d78617/baseline/pytorch/logs/qy_a100_g3025/result_pytorch_training.log",
+      "log_sha256": "f1a1c5b1467a379c6c5866797ea0b351cd4aa326df5cb7f27c5a5ce3c48555f0",
+      "exit_code": "public_reference_exit_unknown",
+      "steps": {
+        "1": 5.317617,
+        "2": 5.037539,
+        "3": 4.869174,
+        "4": 4.959387,
+        "5": 4.91675,
+        "6": 5.063675,
+        "7": 4.845804,
+        "8": 4.899837,
+        "9": 5.097769,
+        "10": 5.221752
+      },
+      "config": {
+        "batch_size": 4,
+        "sequence_length": 64,
+        "total_batch_size": 256,
+        "learning_rate": 0.0001,
+        "optimizer": "sgd",
+        "overfit_single_batch": true,
+        "weights": "gpt2_124M.bin",
+        "data": "tiny_shakespeare_train.bin",
+        "lr_schedule": "constant",
+        "weights_sha256": "unknown",
+        "data_sha256": "unknown"
+      },
+      "unknown_fields": [
+        "weights_sha256",
+        "data_sha256"
+      ],
+      "source_notes": "同一份冻结 raw 日志内的 gpt2_1_bfloat16 case（PyTorch 2.9 A100）；bf16 判据 max_rel<=1e-2 尚未校准，见 open_items，本轮只作 diagnostic",
+      "source_commit": "5a0f27a5c4e26498f6fa0a6421aff4a989d78617",
+      "case_log_path": "references/derived_gpt2_1_bf16_a100_5a0f27a5.log",
+      "case_log_sha256": "afc0d038f9d7ac0f1b5ffd5bd85a676cfa9090807ed70b13b8070ffc25fe63d1",
+      "case_extract_title": "Running: gpt2_1_bfloat16",
+      "case_extract_rule": "在 raw 全日志中查找与 case_extract_title 完全相同的整行（区分大小写、含空格），要求唯一命中；该行下一行必须是纯 '=' 装饰行；片段从标题行开始，到下一个'下一行为 Running: 开头的 '=' 装饰行'之前结束（EOF 处允许以装饰行收尾）。片段必须与 case_log_path 逐字节相同。",
+      "license": "references/LICENSE.InfiniTrain-Test (MIT, Copyright (c) 2026 InfiniTensor)"
+    }
+  },
+  "diagnostic_cases": {
+    "gpt2_1_cuda_infinitrain": {
+      "role": "diagnostic_only",
+      "source": "DCU 适配工作文档第 12 节（外部材料，未随仓库分发，不登记本机路径）",
+      "step1": 5.356189,
+      "note": "仅作交叉诊断，不替代主参考，也不据此放宽阈值；同框架 CUDA 完整 10 步来源仍需另行核实"
+    }
+  },
+  "open_items": [
+    "weights/data 文件的 sha256 仍未知：正式模式会因此拒绝，只能用 --diagnostic（刻意设计）",
+    "同框架 CUDA 诊断列缺真实 10 步来源，未补",
+    "gpt2_1_bf16 的 max_rel<=1e-2 阈值尚未校准：参考自身 bf16 与 fp32 的最大相对差已达 9.30e-3（仅比阈值小 1.08 倍），需先用一次 MLU BF16 单步的诊断差校准，再决定是否设正式门"
+  ]
+}

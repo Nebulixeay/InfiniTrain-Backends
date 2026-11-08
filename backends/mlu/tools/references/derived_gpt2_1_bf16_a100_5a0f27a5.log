@@ -1,0 +1,27 @@
+Running: gpt2_1_bfloat16
+==========================================
+Running pytorch 2.9.0a0+145a3a7bda.nv25.10
+using device: cuda
+total desired batch size: 256
+=> calculated gradient accumulation steps: 1
+loading weights from pretrained gpt: gpt2
+DataLoader: total number of tokens: 305,260 across 1 files
+padded vocab size from 50257 to 50304
+wrote gpt2_124M.bin
+padded vocab size from 50257 to 50304
+wrote gpt2_124M_bf16.bin
+padded vocab size in reference grads from 50257 to 50304
+wrote gpt2_124M_debug_state.bin
+step    1/10 | train loss 5.317617 | norm -1.0000 | lr 1.00e-04 | (152.05 ms | 1684 tok/s)
+step    2/10 | train loss 5.037539 | norm -1.0000 | lr 1.00e-04 | (27.36 ms | 9358 tok/s)
+step    3/10 | train loss 4.869174 | norm -1.0000 | lr 1.00e-04 | (33.36 ms | 7673 tok/s)
+step    4/10 | train loss 4.959387 | norm -1.0000 | lr 1.00e-04 | (27.51 ms | 9307 tok/s)
+step    5/10 | train loss 4.916750 | norm -1.0000 | lr 1.00e-04 | (26.38 ms | 9705 tok/s)
+step    6/10 | train loss 5.063675 | norm -1.0000 | lr 1.00e-04 | (32.71 ms | 7827 tok/s)
+step    7/10 | train loss 4.845804 | norm -1.0000 | lr 1.00e-04 | (31.24 ms | 8195 tok/s)
+step    8/10 | train loss 4.899837 | norm -1.0000 | lr 1.00e-04 | (31.51 ms | 8123 tok/s)
+step    9/10 | train loss 5.097769 | norm -1.0000 | lr 1.00e-04 | (26.29 ms | 9738 tok/s)
+step   10/10 | train loss 5.221752 | norm -1.0000 | lr 1.00e-04 | (26.31 ms | 9729 tok/s)
+final 9 iters Latency avg: 29.185ms
+final 9 iters Throughput avg: 8851 tok/s
+peak memory consumption: 1229 MiB
