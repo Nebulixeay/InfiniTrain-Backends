@@ -3,6 +3,24 @@
 This file records what has actually been run and what has not. It is deliberately conservative:
 anything not listed as verified below should be treated as unverified.
 
+## Recorded 2026-11-11; runs executed 2026-11-05 / 2026-11-10 (single-card training evidence)
+
+The complete raw logs, argv, hashes, exit codes and step tables are committed under
+[`experiments/single-card`](experiments/single-card/README.md). These are
+single-card path results, not formal cross-framework accuracy passes.
+
+| Item | Result | Evidence |
+|---|---|---|
+| GPT-2 FP32 single-card 10 steps | `MEASURED_10_STEPS`; rc=0, unique `step 1/10` through `step 10/10`, all losses finite, device returned idle; 7,417 s | [`023_fp32_10_steps`](experiments/single-card/023_fp32_10_steps/README.md) |
+| GPT-2 BF16 single-card 10 steps | `BF16_10_STEPS_COMPLETED_DIAGNOSTIC`; rc=0, unique `step 1/10` through `step 10/10`, step1 loss `5.290029`, `phase_done=490`, device returned idle; 8,456.023 s | [`036_bf16_10_steps`](experiments/single-card/036_bf16_10_steps/README.md) |
+| Formal loss acceptance | **Blocked independently**: A100 reference `weights_sha256` and `data_sha256` remain unknown, and the FP32 cross-framework comparison is already `DIAGNOSTIC_FAIL` at step 2 (`abs_diff=1.620e-4`, above the original threshold). Results stay diagnostic-only even if the missing A100 hashes are later supplied. | `backends/mlu/tools/compare_loss_strict.py` registry gate |
+
+The FP32 run used runtime HEAD `72f81e2` plus its recorded dirty worktree, and binary
+`93ece3b6…`; the BF16 run used parent `ea5d11c8`, submodule `c90338ce` plus dirty
+`function.cc`, and binary `94a886b7…`. The two runs are historical evidence from their
+recorded source identities and must not be described as the same binary. The hashes in each
+`run.argv.txt` identify local MLU assets, not the A100 reference assets.
+
 ## Verified on 2026-11-03 (this provider layout)
 
 Built from a fresh CMake cache against the pinned InfiniTrain content (`c90338c`, v0.7.0) with
@@ -37,9 +55,9 @@ They are recorded for traceability and were **not** re-executed for this layout 
 | Standard recursive-submodule download | the validation build used an archive of the pinned framework tree plus shallow retrieval of the four dependencies at their pinned commits. File content matched the pinned revisions, but the plain `git submodule update --init --recursive` procedure was **not** exercised |
 | Cross-provider regression | no MACA or CUDA build was run. The untouched official files are not evidence of cross-platform regression coverage |
 | Device GEMM (CNNL) | not implemented; `src/kernels/linear.cc` does D2H -> host GEMM -> H2D and is marked `NOTE(MLU-FALLBACK)` |
-| Full GPT-2 FP32 single-card 10 steps | **not completed**; earlier attempts hit a queue failure at large batch and a slow single-core backward |
+| Full GPT-2 FP32 single-card 10 steps | completed for the recorded GPT-2 124M configuration; broader shapes and formal cross-framework accuracy remain unverified |
 | Backward coverage at model scale | partial; small-shape backward cases exist, full-model backward has not finished |
-| BF16 | registered in dispatch only; `src/kernels/embedding.mlu` still rounds per token (marked `TODO(BF16-MUST-FIX)`), no BF16 accuracy run |
+| BF16 beyond the recorded GPT-2 single-card path | broader shapes/models and formal accuracy remain unverified; `src/kernels/embedding.mlu` still rounds per token (`TODO(BF16-MUST-FIX)`); the recorded 10-step path is documented above |
 | Multi-card (CNCL) | not implemented (communication kernels absent) |
 | Shared InfiniTrain test suites | not wired; `BUILD_TEST=ON` is rejected on purpose and the MLU regression tools are used instead |
 | Performance | kernels run single task / serial (`cnrtFuncTypeBlock`); no multi-core or NRAM vectorisation yet |
@@ -55,12 +73,17 @@ They are recorded for traceability and were **not** re-executed for this layout 
 
 ## Next steps
 
-1. device GEMM via CNNL (with the handle bound to the current stream) and re-run operator tests;
-2. locate the large-shape queue failure, then run GPT-2 1 -> 2 -> 10 steps and compare loss
-   step by step against a frozen A100 baseline;
-3. BF16: FP32 accumulation in embedding, autocast/dtype promotion, softmax/LayerNorm/CE stability;
-4. multi-card: CNCL registration and a 2-card DP milestone;
-5. wire the shared InfiniTrain test suites and run a MACA/CUDA regression before claiming
+1. provide the missing A100 reference asset hashes and resolve the recorded FP32 diagnostic
+   difference before attempting a formal accuracy claim;
+2. implement device GEMM via CNNL with the handle bound to the current stream, then re-run
+   the operator tests;
+3. locate the unresolved large-shape queue failure. GPT-2 1 -> 2 -> 10 steps is complete for
+   the recorded single-card configuration, but broader shapes and the formal A100 comparison
+   remain open;
+4. if broader BF16 coverage is required, add focused shape/operator gates rather than repeating
+   the completed GPT-2 ten-step run; keep the embedding per-token rounding TODO visible;
+5. multi-card: CNCL registration and a 2-card DP milestone;
+6. wire the shared InfiniTrain test suites and run a MACA/CUDA regression before claiming
    cross-provider compatibility.
 
 ## Strict loss acceptance tool (2026-11-03, this provider layout)
@@ -144,16 +167,17 @@ server batch. No PASS result for these new cases exists yet.
 - Not formatted: `clang-format-16` is not available in this workspace, so the new C++ has **not**
   been format-checked yet; this must be done before the server build.
 
-## GPT-2 single-card follow-up (2026-11-06)
+## GPT-2 single-card follow-up (historical notes, superseded by the committed evidence above)
 
 - FP32 completed all 10 training steps on one MLU. With the gradient accumulation
   optimization, the median gap between logged steps fell from about 47.8 s to
   23.9 s, and all 10 reported losses matched the previous MLU run exactly.
   The comparison against the A100 reference remains diagnostic and exceeds the
   FP32 acceptance threshold.
-- BF16 autocast completed the forward pass after parallelizing Cast. Backward
-  stopped at a gradient merge in Function::BackwardPartial because an FP32
-  gradient was being added to a BF16 buffer. A complete BF16 step remains open.
+- BF16 autocast initially stopped at a gradient merge in Function::BackwardPartial because an
+  FP32 gradient was being added to a BF16 buffer. The subsequent 034/035 structural cleanup
+  and 036 run completed the recorded BF16 single-card ten-step path; the earlier note remains
+  as history and is not the current status.
 - These are staged-run observations from the corresponding changes. The branch
   keeps the existing InfiniTrain submodule revision and the original accuracy
   thresholds.

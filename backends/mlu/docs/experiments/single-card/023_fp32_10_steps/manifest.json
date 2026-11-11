@@ -1,0 +1,105 @@
+{
+  "name": "023_fp32_10_steps",
+  "label": "FP32 单卡十步正式训练",
+  "dtype": "float32",
+  "source_commit": "72f81e2753f025ebfdef722f7c3af1342e4674f2",
+  "runtime_branch": "feat/mlu-provider-initial",
+  "worktree_dirty": {
+    "modified_files": [
+      "backends/mlu/docs/validation.md",
+      "backends/mlu/src/kernels/accumulate_grad.mlu",
+      "backends/mlu/src/kernels/cross_entropy.mlu",
+      "backends/mlu/src/kernels/elementwise.mlu",
+      "backends/mlu/src/kernels/layernorm.mlu",
+      "backends/mlu/src/kernels/linear.cc",
+      "backends/mlu/src/kernels/softmax.mlu",
+      "backends/mlu/src/kernels/transform.mlu",
+      "backends/mlu/tests/op_test.cc"
+    ],
+    "untracked_paths": ["backends/mlu/tools/"],
+    "diff_sha256": "1c01bee3ab4d5c79517080a8b1f23f8100663a5d743411c13541d03e9ee08a27",
+    "diff_bytes": 90895
+  },
+  "content_equivalent_commit": null,
+  "binary_sha256": "93ece3b6bff49ea16820916b60ffc66bf88bd10d390a3f20e573ff7d5a25144f",
+  "raw_train_sha256": "85bf29b03c1189f03f9cd5b78d78fe7c66568bebce485bcf53c71f4c02daa50e",
+  "raw_train_lines": 2514,
+  "argv_file": "run.argv.txt",
+  "evidence_dir": ".",
+  "exit_code": 0,
+  "steps": [
+    {
+      "step": 1,
+      "loss": 5.356084,
+      "lr": "1.00e-04",
+      "step_ms": 690518.14,
+      "peak_mb": 1517
+    },
+    {
+      "step": 2,
+      "loss": 5.060423,
+      "lr": "1.00e-04",
+      "step_ms": 737486.77,
+      "peak_mb": 1517
+    },
+    {
+      "step": 3,
+      "loss": 4.860268,
+      "lr": "1.00e-04",
+      "step_ms": 739781.62,
+      "peak_mb": 1517
+    },
+    {
+      "step": 4,
+      "loss": 4.961235,
+      "lr": "1.00e-04",
+      "step_ms": 737901.08,
+      "peak_mb": 1517
+    },
+    {
+      "step": 5,
+      "loss": 4.888132,
+      "lr": "1.00e-04",
+      "step_ms": 739100.08,
+      "peak_mb": 1517
+    },
+    {
+      "step": 6,
+      "loss": 5.099115,
+      "lr": "1.00e-04",
+      "step_ms": 739454.29,
+      "peak_mb": 1517
+    },
+    {
+      "step": 7,
+      "loss": 4.860406,
+      "lr": "1.00e-04",
+      "step_ms": 737547.33,
+      "peak_mb": 1517
+    },
+    {
+      "step": 8,
+      "loss": 4.94498,
+      "lr": "1.00e-04",
+      "step_ms": 768000.33,
+      "peak_mb": 1517
+    },
+    {
+      "step": 9,
+      "loss": 5.121128,
+      "lr": "1.00e-04",
+      "step_ms": 738727.8,
+      "peak_mb": 1517
+    },
+    {
+      "step": 10,
+      "loss": 5.270833,
+      "lr": "1.00e-04",
+      "step_ms": 739107.43,
+      "peak_mb": 1517
+    }
+  ],
+  "process_seconds": 7417,
+  "classification": "MEASURED_10_STEPS",
+  "evidence_scope": "rc=0、10/10、loss 全 finite、设备回空闲。与 A100 的严格比较为 DIAGNOSTIC_FAIL：step 2 的 abs_diff=1.620e-4，超过原始 FP32 阈值；同时 A100 参考 weights_sha256/data_sha256 未知，因此 formal gate 仍被拒绝。即使补齐参考资产 hash，现有跨框架差异也不能宣称 formal PASS。"
+}

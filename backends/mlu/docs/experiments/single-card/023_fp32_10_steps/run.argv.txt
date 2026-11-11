@@ -1,0 +1,34 @@
+argv: [/home/xuyunfei/verify023_023-implement-p1-v1-g14-20261105/bdir/gpt2 --device mlu --input_bin /home/xuyunfei/InfiniTrain/data/gpt2/tiny_shakespeare_train.bin --llmc_filepath /home/xuyunfei/InfiniTrain/data/gpt2/gpt2_124M.bin --dtype float32 --batch_size 4 --sequence_length 64 --total_batch_size 256 --num_iteration 10 --overfit_single_batch true --val_loss_every 0 --sample_every 0]
+stage=/home/xuyunfei/verify023_023-implement-p1-v1-g14-20261105
+argv_frozen=true argv_changed_vs_020_021=num_iteration_only
+hostname=f9dacafc16b8
+uid=1001
+CONDA_PREFIX=/home/xuyunfei/miniconda3/envs/mlu
+OMP_NUM_THREADS=192
+GLOG_logtostderr=1
+MLU_DEBUG_SYNC=<unset>
+MLU_DEBUG_CHECK=<unset>
+MLU_LINEAR_PROFILE=1
+MLU_VISIBLE_DEVICES=<unset>
+nproc=192
+affinity=pid 45455's current affinity list: 0-191
+binary_path=/home/xuyunfei/verify023_023-implement-p1-v1-g14-20261105/bdir/gpt2
+binary_sha256=93ece3b6bff49ea16820916b60ffc66bf88bd10d390a3f20e573ff7d5a25144f
+binary_size=4537016
+binary_mtime=2026-11-05 13:22:24.766460562 +0800
+weights_path=/home/xuyunfei/InfiniTrain/data/gpt2/gpt2_124M.bin
+weights_sha256=3da8b207584030bcdcd207cf7a99952e3421dce92da218b351071857511bf162
+data_path=/home/xuyunfei/InfiniTrain/data/gpt2/tiny_shakespeare_train.bin
+data_sha256=8a70606be574040c26d225694f5f9759973b419852d22f7fe5c118e1b359dcc8
+cross_entropy.mlu_sha256=6fb9ee73bd4c715ccba5281c4f0c7bdb8d6381309526245e87b04e74a79bf540
+layernorm.mlu_sha256=7e385e80ee064ed47c689136fc55e7cc594842b8721b925830b7c748b1191f40
+softmax.mlu_sha256=f22e07ea47117a9f7bb57c5278da119513fd12525c5099fd5b4fc58bf250e845
+transform.mlu_sha256=8ca89d72de09c72fecd3c8542f4de50001326a8f38254c3fb7634476a2001673
+elementwise.mlu_sha256=f526a6611353c1502965234e5ad6892960637d1f3b568b1c8b0e60ee5d91d163
+accumulate_grad.mlu_sha256=80eba6280bd0d4dd796ff905868a90f238ba80b86355e385539946e69acc235f
+linear.cc_sha256=be70a02ede4a43af98d0ca8280e3ce0776f468657046c8c4023540167b53b0a8
+framework_main_sha256=85ea95acc739ef8334d62f845e812ba2a4ba19738e4c7123b320733c9efbb404
+timeout_seconds=9000
+start_time=2026-11-05 13:22:41 +0800
+end_time=2026-11-05 15:26:18 +0800
+process_seconds=7417

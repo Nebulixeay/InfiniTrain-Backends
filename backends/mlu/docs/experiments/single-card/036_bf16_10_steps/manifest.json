@@ -1,0 +1,96 @@
+{
+  "name": "036_bf16_10_steps",
+  "label": "BF16 单卡十步正式验证",
+  "dtype": "bfloat16",
+  "source_commit": "ea5d11c8c2fe178010d511de64db4b837715b07e",
+  "runtime_parent_commit": "ea5d11c8c2fe178010d511de64db4b837715b07e",
+  "runtime_submodule_commit": "c90338ceb2dc528816bf78c422f1f5483f2be1ae",
+  "worktree_dirty": {
+    "modified_files": [
+      "third_party/InfiniTrain/infini_train/src/autograd/function.cc"
+    ],
+    "function_cc_sha256": "13830660ca994d995b2f363b5dca18aa2aa90740415ee2ba0d45ecc53ebfba9e"
+  },
+  "content_equivalent_commit": "8ca1ce54590f8e4b2c2597ec119d71fba5621d65",
+  "binary_sha256": "94a886b7c62f273da2d73a02779e64abbc6fa4ed6fe0e6eca330d6090b1205df",
+  "raw_train_sha256": "44223de2c468069d664ba65ae201f4f135b647e5f1fa66366577c13bb3911662",
+  "raw_train_lines": 2514,
+  "argv_file": "run.argv.txt",
+  "evidence_dir": ".",
+  "exit_code": 0,
+  "steps": [
+    {
+      "step": 1,
+      "loss": 5.290029,
+      "lr": "1.00e-04",
+      "step_ms": 820001.47,
+      "peak_mb": 1517
+    },
+    {
+      "step": 2,
+      "loss": 5.029475,
+      "lr": "1.00e-04",
+      "step_ms": 845049.88,
+      "peak_mb": 1517
+    },
+    {
+      "step": 3,
+      "loss": 4.86211,
+      "lr": "1.00e-04",
+      "step_ms": 845174.29,
+      "peak_mb": 1517
+    },
+    {
+      "step": 4,
+      "loss": 4.941002,
+      "lr": "1.00e-04",
+      "step_ms": 846161.59,
+      "peak_mb": 1517
+    },
+    {
+      "step": 5,
+      "loss": 4.915048,
+      "lr": "1.00e-04",
+      "step_ms": 845742.74,
+      "peak_mb": 1517
+    },
+    {
+      "step": 6,
+      "loss": 5.08001,
+      "lr": "1.00e-04",
+      "step_ms": 845669.58,
+      "peak_mb": 1517
+    },
+    {
+      "step": 7,
+      "loss": 4.849368,
+      "lr": "1.00e-04",
+      "step_ms": 846174.44,
+      "peak_mb": 1517
+    },
+    {
+      "step": 8,
+      "loss": 4.897724,
+      "lr": "1.00e-04",
+      "step_ms": 844615.63,
+      "peak_mb": 1517
+    },
+    {
+      "step": 9,
+      "loss": 5.097935,
+      "lr": "1.00e-04",
+      "step_ms": 845645.55,
+      "peak_mb": 1517
+    },
+    {
+      "step": 10,
+      "loss": 5.235152,
+      "lr": "1.00e-04",
+      "step_ms": 846141.79,
+      "peak_mb": 1517
+    }
+  ],
+  "process_seconds": 8456.023,
+  "classification": "BF16_10_STEPS_COMPLETED_DIAGNOSTIC",
+  "evidence_scope": "rc=0、10/10、step1=5.290029、loss 全 finite、无 FATAL/CNRT/NaN/Inf/core/cndump、设备回空闲；不是 formal accuracy PASS。"
+}
