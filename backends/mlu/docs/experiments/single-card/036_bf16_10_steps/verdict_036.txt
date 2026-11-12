@@ -1,0 +1,72 @@
+=== 036 BF16 十步正式验证：判定与证据摘要 ===
+2026-11-10 15:57 +08:00
+事件：036-implement-p1-v1-g19；方案 036-P1 v1（Codex C-001 接受 K-001 C1–C9，timeout 12000）
+
+--- rc / 耗时 ---
+rc=0
+process_seconds_float=8456.023
+start_time=2026-11-10 13:33:12.190051820 +0800
+end_time=2026-11-10 15:54:08.231776765 +0800
+timeout_seconds=12000（余量 3543.98 s，29.5% 未用）
+mismatch_hit=NO_029_MISMATCH_TOKEN
+
+--- 十步（唯一且严格递增） ---
+step_lines=10  sequence=[1..10]  ordered=True  all_totals_10=True  all_loss_finite=True
+step1_loss=5.290029  等于 035 单步值：YES（C3 硬门通过）
+
+step | loss     | lr       | step_ms      | peak MB | step 行时间
+   1 | 5.290029 | 1.00e-04 |    820001.47 |    1517 | 13:46:53.777
+   2 | 5.029475 | 1.00e-04 |    845049.88 |    1517 | 14:00:58.827
+   3 | 4.862110 | 1.00e-04 |    845174.29 |    1517 | 14:15:04.002
+   4 | 4.941002 | 1.00e-04 |    846161.59 |    1517 | 14:29:10.163
+   5 | 4.915048 | 1.00e-04 |    845742.74 |    1517 | 14:43:15.906
+   6 | 5.080010 | 1.00e-04 |    845669.58 |    1517 | 14:57:21.576
+   7 | 4.849368 | 1.00e-04 |    846174.44 |    1517 | 15:11:27.751
+   8 | 4.897724 | 1.00e-04 |    844615.63 |    1517 | 15:25:32.366
+   9 | 5.097935 | 1.00e-04 |    845645.55 |    1517 | 15:39:38.012
+  10 | 5.235152 | 1.00e-04 |    846141.79 |    1517 | 15:53:44.154
+
+--- 逐步阶段耗时（s） ---
+step | forward | loss fwd | backward
+   1 |   433.2 |     29.2 |   357.5
+   2 |   434.1 |     29.3 |   357.7
+   3 |   434.6 |     29.3 |   357.4
+   4 |   435.4 |     29.2 |   357.6
+   5 |   435.1 |     29.2 |   357.5
+   6 |   434.7 |     29.2 |   357.8
+   7 |   435.2 |     29.3 |   357.7
+   8 |   433.7 |     29.2 |   357.8
+   9 |   434.8 |     29.2 |   357.7
+  10 |   435.5 |     29.2 |   357.5
+sum forward=4346.2  sum loss fwd=292.3  sum backward=3576.4
+
+--- 9 个 gap（上一步 step 行 → 下一步 start forward；FP32 025 对照=47.79 s，仅 diagnostic） ---
+gap1..gap9 = 23.937 / 23.934 / 23.939 / 23.939 / 23.939 / 23.939 / 23.935 / 23.939 / 23.939
+min=23.934  median=23.939  max=23.939  （极差 0.005 s）
+
+--- 内部一致性指标 ---
+phase_enter=490  phase_done=490（K-001 C4 预测 49×10=490，精确命中）
+profile_lines=2440（K-001 预测 ≈2440，精确命中）
+
+--- 错误与守卫扫描 ---
+FATAL/CHECK failed/100121/CNRT/NaN/Inf/abort/Segmentation 命中 = 0
+029 token = 0；tensor.cc:616 = 0；layernorm.cc:75 = 0；accumulate_grad.cc:24 = 0；set_grad = 0；"dtype mismatch" = 0
+
+--- 设备（前 / 中 / 后） ---
+before 13:32:57：Card0 0% / 0 MiB；其余卡 0
+mid    14:50:17：Card0 100% / 1361 MiB；Card1 0% / 0 MiB（仅 device0 在用）
+after  15:54+：Card0 0% / 0 MiB（回空闲）
+残留进程：无；core/cndump：无；ulimit -c=0；core_pattern=|/usr/lib/systemd/systemd-coredump
+
+--- 身份（运行前后） ---
+binary before = 94a886b7c62f273da2d73a02779e64abbc6fa4ed6fe0e6eca330d6090b1205df
+binary after  = 94a886b7c62f273da2d73a02779e64abbc6fa4ed6fe0e6eca330d6090b1205df（未变 ✓）
+function.cc   = 13830660ca994d995b2f363b5dca18aa2aa90740415ee2ba0d45ecc53ebfba9e（未变）
+accumulate.cc = 687436a9006a1b9fad164da6c8244e2d67a433297581f98224b904b107b1669d（未变）
+全程未运行 ninja / cmake / configure
+
+--- 分级 ---
+BF16_10_STEPS_COMPLETED_DIAGNOSTIC
+（rc=0 + 10 条唯一严格递增 step + 全 finite + step1=5.290029 + 零错误/零守卫 + 设备回空闲 + 无 core/cndump）
+仅代表本图（GPT-2 124M）/ 本配置（单卡、batch 4、seq 64、overfit 单 batch、lr 1e-4）/ BF16 autocast 十步路径稳定；
+不是 formal 精度 PASS，不覆盖 FP32、多卡、其它 provider 或 Matmul/LoRA 路径。

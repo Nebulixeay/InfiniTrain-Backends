@@ -1,0 +1,9 @@
+=== container post-run checks ===
+2026-11-10 15:54:08 +0800
+=== residual processes ===
+=== core/cndump (stage,home,container cwd) ===
+=== ulimit -c / core_pattern (运行后复核) ===
+0
+|/usr/lib/systemd/systemd-coredump %P %u %g %s %t %c %h
+=== train.log lines ===
+2514 /home/xuyunfei/verify031_031-implement-p1-v1-g14-20261106/inputs036/train.log

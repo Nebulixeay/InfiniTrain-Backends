@@ -1,0 +1,22 @@
+=== 036 实施起始状态 ===
+2026-11-10 13:32:44 +08:00
+event=036-implement-p1-v1-g19 plan=036-P1 v1
+
+--- 来源 hash ---
+a26a5d984f5d51815c8e57f655929ff8ee4288992987e28fdcb8aa23c5bb46d5 *AGENTS.md
+a5fec719c5486dffdc2f0e98d9eda8f68e79f3d9ea7f08ce08401517e3deee73 *协作沟通/README.md
+6c80a58140f2ffed248ff72a64a074e7b505dad3b79f92710ef24e38ecd9b15b *协作沟通/036_BF16十步正式验证/Codex.md
+28d498956438863e047ac7165746a473a59921bfe907402af78eb7415625ee84 *协作沟通/036_BF16十步正式验证/Kimi.md
+b6edb11d33f633a0d3efec725c0fc7c9ff249d6319c2131fffd4b6326b255628 *协作沟通/035_034结构性修复清理验证/Kimi.md
+9ed2f792d52e43e10007204181fa2867dc68c593ebcd369a2a459038a1f90ca6 *协作沟通/035_034结构性修复清理验证/evidence/kimi/verdict_035.txt
+
+--- 授权仓 ---
+feat/mlu-task2-collab
+ea5d11c8c2fe178010d511de64db4b837715b07e
+ M third_party/InfiniTrain
+--- 子模块 ---
+ M infini_train/src/autograd/function.cc
+13830660ca994d995b2f363b5dca18aa2aa90740415ee2ba0d45ecc53ebfba9e *InfiniTrain-Backends-task2-collab/third_party/InfiniTrain/infini_train/src/autograd/function.cc
+687436a9006a1b9fad164da6c8244e2d67a433297581f98224b904b107b1669d *InfiniTrain-Backends-task2-collab/third_party/InfiniTrain/infini_train/src/autograd/accumulate.cc
+--- PR 基线 ---
+12
