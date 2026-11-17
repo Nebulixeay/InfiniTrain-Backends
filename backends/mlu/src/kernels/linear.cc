@@ -238,10 +238,15 @@ std::shared_ptr<Tensor> LinearBackwardInput(const std::shared_ptr<Tensor> &weigh
                                             const std::shared_ptr<Tensor> &grad_output, bool transpose,
                                             int64_t in_features, int64_t out_features,
                                             const std::vector<int64_t> &input_dims) {
-    auto grad_input = std::make_shared<Tensor>(input_dims, grad_output->Dtype(), grad_output->GetDevice());
+    const auto compute_dtype = weight->Dtype();
+    auto grad_compute = grad_output->Dtype() == compute_dtype
+                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+    // Match MACA's temporary backward output policy until autograd/autocast owns this conversion.
+    const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
+    auto grad_input = std::make_shared<Tensor>(input_dims, output_dtype, grad_output->GetDevice());
     const int64_t rows = NumElementsOf(input_dims) / in_features;
 
-    auto g_host = ToHostFloat(grad_output, grad_output->GetDevice().type());
+    auto g_host = ToHostFloat(grad_compute, grad_compute->GetDevice().type());
     auto w_host = ToHostFloat(weight, weight->GetDevice().type());
     std::vector<float> gi_host(static_cast<size_t>(rows * in_features));
 
@@ -264,11 +269,15 @@ std::shared_ptr<Tensor> LinearBackwardWeight(const std::shared_ptr<Tensor> &inpu
                                              int64_t in_features, int64_t out_features) {
     const std::vector<int64_t> weight_dims
         = transpose ? std::vector<int64_t>{out_features, in_features} : std::vector<int64_t>{in_features, out_features};
-    auto grad_weight = std::make_shared<Tensor>(weight_dims, grad_output->Dtype(), grad_output->GetDevice());
+    const auto compute_dtype = input->Dtype();
+    auto grad_compute = grad_output->Dtype() == compute_dtype
+                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+    const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
+    auto grad_weight = std::make_shared<Tensor>(weight_dims, output_dtype, grad_output->GetDevice());
     const int64_t rows = input->NumElements() / in_features;
 
     auto in_host = ToHostFloat(input, input->GetDevice().type());
-    auto g_host = ToHostFloat(grad_output, grad_output->GetDevice().type());
+    auto g_host = ToHostFloat(grad_compute, grad_compute->GetDevice().type());
     std::vector<float> gw_host(static_cast<size_t>(out_features * in_features));
 
     if (transpose) {
@@ -286,8 +295,10 @@ std::shared_ptr<Tensor> LinearBackwardWeight(const std::shared_ptr<Tensor> &inpu
 }
 
 std::shared_ptr<Tensor> LinearBackwardBias(const std::shared_ptr<Tensor> &grad_output, int64_t out_features) {
+    const auto compute_dtype = grad_output->Dtype();
+    const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
     auto grad_bias
-        = std::make_shared<Tensor>(std::vector<int64_t>{out_features}, grad_output->Dtype(), grad_output->GetDevice());
+        = std::make_shared<Tensor>(std::vector<int64_t>{out_features}, output_dtype, grad_output->GetDevice());
     const int64_t rows = grad_output->NumElements() / out_features;
 
     auto g_host = ToHostFloat(grad_output, grad_output->GetDevice().type());
@@ -343,8 +354,12 @@ std::shared_ptr<Tensor> MatmulBackwardInput(const std::shared_ptr<Tensor> &other
     const int64_t k = other_dims[other_dims.size() - 2];
     const int64_t bs = NumElementsOf(std::vector<int64_t>(grad_dims.begin(), grad_dims.end() - 2));
 
-    auto grad_input = std::make_shared<Tensor>(input_dims, grad_output->Dtype(), grad_output->GetDevice());
-    auto g_host = ToHostFloat(grad_output, grad_output->GetDevice().type());
+    const auto compute_dtype = other->Dtype();
+    auto grad_compute = grad_output->Dtype() == compute_dtype
+                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+    const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
+    auto grad_input = std::make_shared<Tensor>(input_dims, output_dtype, grad_output->GetDevice());
+    auto g_host = ToHostFloat(grad_compute, grad_compute->GetDevice().type());
     auto b_host = ToHostFloat(other, other->GetDevice().type());
     std::vector<float> gi_host(static_cast<size_t>(bs * m * k));
 
@@ -368,9 +383,13 @@ std::shared_ptr<Tensor> MatmulBackwardOther(const std::shared_ptr<Tensor> &input
     const int64_t n = grad_dims[grad_dims.size() - 1];
     const int64_t bs = NumElementsOf(std::vector<int64_t>(input_dims.begin(), input_dims.end() - 2));
 
-    auto grad_other = std::make_shared<Tensor>(other_dims, grad_output->Dtype(), grad_output->GetDevice());
+    const auto compute_dtype = input1->Dtype();
+    auto grad_compute = grad_output->Dtype() == compute_dtype
+                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+    const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
+    auto grad_other = std::make_shared<Tensor>(other_dims, output_dtype, grad_output->GetDevice());
     auto a_host = ToHostFloat(input1, input1->GetDevice().type());
-    auto g_host = ToHostFloat(grad_output, grad_output->GetDevice().type());
+    auto g_host = ToHostFloat(grad_compute, grad_compute->GetDevice().type());
     std::vector<float> go_host(static_cast<size_t>(bs * k * n));
 
     // grad_other(bs,k,n) = input(bs,m,k)^T * grad(bs,m,n)

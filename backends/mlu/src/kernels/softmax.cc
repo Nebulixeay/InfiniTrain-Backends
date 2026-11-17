@@ -6,6 +6,7 @@
 #include "glog/logging.h"
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/datatype.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/tensor.h"
@@ -61,11 +62,17 @@ std::shared_ptr<Tensor> SoftmaxForward(const std::shared_ptr<Tensor> &input, int
 
 std::shared_ptr<Tensor> SoftmaxBackward(const std::shared_ptr<Tensor> &grad_output,
                                         const std::shared_ptr<Tensor> &output, int64_t dim) {
+    // Match CUDA: both pointers and the result must use the promoted dtype.
+    const auto promoted_type = PromoteDataTypes(grad_output->Dtype(), output->Dtype());
+    auto grad_output_promoted = grad_output->Dtype() == promoted_type
+                                    ? grad_output : std::make_shared<Tensor>(grad_output->To(promoted_type));
+    auto output_promoted = output->Dtype() == promoted_type
+                               ? output : std::make_shared<Tensor>(output->To(promoted_type));
     const auto &output_dims = output->Dims();
     dim = dim < 0 ? dim + output_dims.size() : dim;
     CHECK(dim >= 0 && dim < static_cast<int64_t>(output_dims.size()));
 
-    auto grad_input = std::make_shared<Tensor>(output_dims, output->Dtype(), output->GetDevice());
+    auto grad_input = std::make_shared<Tensor>(output_dims, promoted_type, output->GetDevice());
 
     int64_t outer_size, axis_size, inner_size;
     ComputeSoftmaxSizes(output_dims, dim, &outer_size, &axis_size, &inner_size);
@@ -75,10 +82,10 @@ std::shared_ptr<Tensor> SoftmaxBackward(const std::shared_ptr<Tensor> &grad_outp
 
     const auto queue = CurrentQueue(output->GetDevice());
     core::mlu::DispatchMluFunc<INFINI_MLU_FLOATING_TYPES>(
-        output->Dtype(),
+        promoted_type,
         [=]<typename T>() {
-            SoftmaxBackwardLaunch(grad_input->DataPtr(), grad_output->DataPtr(), output->DataPtr(), outer_size,
-                                  axis_size, inner_size, MluTypeTag<T>(), queue);
+            SoftmaxBackwardLaunch(grad_input->DataPtr(), grad_output_promoted->DataPtr(), output_promoted->DataPtr(),
+                                  outer_size, axis_size, inner_size, MluTypeTag<T>(), queue);
             ::infini_train::core::mlu::DebugSyncQueue(queue, "SoftmaxBackward");
         },
         "MLU SoftmaxBackward");
