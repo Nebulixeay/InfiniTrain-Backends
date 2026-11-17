@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""严格 loss 验收工具（002-P1 v2 §A / 006-P1 v2）。
+"""严格 loss 验收工具。
 
 只用标准库。判据来源分开标注：
   阈值 FP32 max_abs<=1e-5 / BF16 max_rel<=1e-2 —— criterion_source=user_pdf_and_a100_log
@@ -429,7 +429,7 @@ def compare(ref_steps, act_steps, dtype):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="strict loss acceptance (002-P1 v2 §A)")
+    ap = argparse.ArgumentParser(description="strict loss acceptance")
     ap.add_argument("--actual", required=True)
     ap.add_argument("--actual-meta", required=True)
     ap.add_argument("--ref", help="reference log path (or use --registry with --case)")

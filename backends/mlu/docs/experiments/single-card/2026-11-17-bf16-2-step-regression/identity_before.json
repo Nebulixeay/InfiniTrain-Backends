@@ -1,0 +1,14 @@
+{
+  "binary_sha256": "cfacde3069c51c0bcf53377fddf81692f6264e1e1a40c70eb29f6417c9c0e1be",
+  "files": {
+    "backends/mlu/src/kernels/linear.cc": "c40e04727cc7ebe6240d7855f1473fc1eb9aa9e6234315caf0f2b2cb36c475ce",
+    "backends/mlu/tests/op_test.cc": "a99fa9842637d39ca8570a12b6f969bc418a1f130ba8839b34c7558dad34d2d8",
+    "backends/maca/src/kernels/linear.maca": "0327fc7e190c740f9513910f14a04c66832517e2e0472f96a702e7a1974d4eb2",
+    "backends/mlu/src/kernels/accumulate_grad.cc": "4d7e2116cd2d38fb3570b27b7cc11087a8fc0948d8e68a95b7075aa8930205a9",
+    "third_party/InfiniTrain/infini_train/src/autograd/function.cc": "c6699b3ce8ba24cd1d4dac249c7b9f6513f1295a4bf0293d5c8681139f4f0c45",
+    "third_party/InfiniTrain/infini_train/include/autocast.h": "c16df055edb9c59423bca729d90896dd350a3bd03281081631c25394cae66fa4",
+    "backends/mlu/src/kernels/softmax.cc": "66bcc71e04ba2131f3bdb63e8a7c78fbee84fbe61c859700660203770a1caae7"
+  },
+  "weights_sha256": "3da8b207584030bcdcd207cf7a99952e3421dce92da218b351071857511bf162",
+  "data_sha256": "8a70606be574040c26d225694f5f9759973b419852d22f7fe5c118e1b359dcc8"
+}

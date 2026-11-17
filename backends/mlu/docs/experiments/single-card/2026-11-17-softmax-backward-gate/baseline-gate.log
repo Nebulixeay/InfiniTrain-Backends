@@ -1,0 +1,6 @@
+op_test: device=0 inject_finite=0 inject_nan=0
+softmax_backward saved=bf16 incoming=fp32 outer=2 axis=7 inner=1 dim=-1
+SoftmaxBackward dtype+shape                    FAIL unexpected dtype
+[bwd] case=SoftmaxBackward mixed dtypes device=0 stream=0x56397704d960 sync=blocking_Memcpy_current_queue host_read_after_tohost_returned internal_check=CNRT_CHECK
+SoftmaxBackward analytic                   FAIL  n=14     max_abs=5.849e+28   max_rel=1.218e+30   bad=12  worst[2] ref=-0.04801613 got=-5.849267e+28
+RESULT: FAIL

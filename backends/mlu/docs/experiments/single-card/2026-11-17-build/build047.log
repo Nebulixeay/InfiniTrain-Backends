@@ -1,0 +1,182 @@
+ninja: Entering directory `/home/xuyunfei/verify047_softmax_backward_20261117/bdir'
+[0/2] Re-checking globbed directories...
+[1/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/stacktrace.cc.o
+[2/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/vlog_is_on.cc.o
+[3/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/demangle.cc.o
+[4/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/symbolize.cc.o
+[5/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/raw_logging.cc.o
+[6/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/flags.cc.o
+[7/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/utilities.cc.o
+[8/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/signalhandler.cc.o
+[9/163] Building CXX object InfiniTrain/third_party/gflags/CMakeFiles/gflags_nothreads_static.dir/src/gflags_reporting.cc.o
+[10/163] Building CXX object InfiniTrain/third_party/gflags/CMakeFiles/gflags_nothreads_static.dir/src/gflags_completions.cc.o
+[11/163] Building CXX object InfiniTrain/third_party/gflags/CMakeFiles/gflags_nothreads_static.dir/src/gflags.cc.o
+[12/163] Linking CXX static library InfiniTrain/third_party/gflags/libgflags_nothreads.a
+[13/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog_internal.dir/src/logging.cc.o
+[14/163] Generating CMakeFiles/glog.cc
+[15/163] Building CXX object InfiniTrain/third_party/glog/CMakeFiles/glog.dir/CMakeFiles/glog.cc.o
+[16/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autocast.cc.o
+[17/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/grad_mode.cc.o
+[18/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/function_hook.cc.o
+[19/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/gather.cc.o
+[20/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/accumulate.cc.o
+[21/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/activations.cc.o
+[22/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/comm.cc.o
+[23/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/function.cc.o
+[24/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/elementwise.cc.o
+[25/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/linear.cc.o
+[26/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/loss.cc.o
+[27/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/no_op.cc.o
+[28/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/matmul.cc.o
+[29/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/normalization.cc.o
+[30/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/outer.cc.o
+[31/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/scatter.cc.o
+[32/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/reduction.cc.o
+[33/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/scatter_add.cc.o
+[34/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/softmax.cc.o
+[35/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/sparse.cc.o
+[36/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/topk.cc.o
+[37/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/autograd/transform.cc.o
+[38/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/core/ccl/ccl_utils.cc.o
+[39/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/checkpoint/load_planner.cc.o
+[40/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/checkpoint/load_strategy.cc.o
+[41/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/core/privateuse1_backend.cc.o
+[42/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/checkpoint/save_planner.cc.o
+[43/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/core/ccl/ccl.cc.o
+[44/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/datatype.cc.o
+[45/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/checkpoint/checkpoint_manager.cc.o
+[46/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/core/runtime/stream_guard.cc.o
+[47/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/core/runtime/cpu/cpu_guard_impl.cc.o
+[48/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/checkpoint/checkpoint.cc.o
+[49/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/dispatcher.cc.o
+[50/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/core/runtime/device_guard.cc.o
+[51/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/lora/lora_config.cc.o
+[52/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/dataloader.cc.o
+[53/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/device.cc.o
+[54/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/lr_scheduler.cc.o
+[55/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/functional.cc.o
+[56/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/init.cc.o
+[57/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/container.cc.o
+[58/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/activations.cc.o
+[59/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/lora/lora_linear.cc.o
+[60/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/linear.cc.o
+[61/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/loss.cc.o
+[62/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/lora/lora_parallel_linear.cc.o
+[63/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/lora/lora_utils.cc.o
+[64/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/sparse.cc.o
+[65/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/normalization.cc.o
+[66/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/causal_self_attention.cc.o
+[67/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/mlp.cc.o
+[68/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/moe/moe_layer.cc.o
+[69/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/moe/experts.cc.o
+[70/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/moe/moe_utils.cc.o
+[71/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/moe/token_dispatcher.cc.o
+[72/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/moe/router.cc.o
+[73/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/transformer_config.cc.o
+[74/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/module.cc.o
+[75/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/comm.cc.o
+[76/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/utils.cc.o
+[77/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/modules/transformer/transformer.cc.o
+[78/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/ddp/distributed_optimizer.cc.o
+[79/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/pp/pipeline_parallel.cc.o
+[80/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/data_parallel.cc.o
+[81/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/ddp/reducer.cc.o
+[82/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/ddp/distributed_data_parallel.cc.o
+[83/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/global.cc.o
+[84/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/rank.cc.o
+[85/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/parallel_functional.cc.o
+[86/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/ddp/param_and_grad_buffer.cc.o
+[87/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/pp/pipeline_stage.cc.o
+[88/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/work.cc.o
+[89/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/pp/send_recv.cc.o
+[90/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/utils.cc.o
+[91/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/pp/pipeline_schedule.cc.o
+[92/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/shard_spec.cc.o
+[93/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/optimizer.cc.o
+[94/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/utils/precision_check_context.cc.o
+[95/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/process_group.cc.o
+[96/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/utils/string_utils.cc.o
+[97/163] Linking CXX static library InfiniTrain/third_party/glog/libglog.a
+[98/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/utils/precision_check_config.cc.o
+[99/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/profiler.cc.o
+[100/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/backend.cc.o
+[101/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/nn/parallel/tensor_parallel.cc.o
+[102/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/utils/global_module_hook_registry.cc.o
+[103/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/utils/checkpoint.cc.o
+[104/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/runtime/mlu_guard_impl.cc.o
+In file included from /home/xuyunfei/verify047_softmax_backward_20261117/backends/mlu/src/runtime/mlu_guard_impl.cc:20:
+/home/xuyunfei/verify047_softmax_backward_20261117/backends/mlu/src/common/common_mlu.h:19: warning: "CNRT_CHECK" redefined
+   19 | #define CNRT_CHECK(call)                                                                                               \
+      | 
+In file included from /home/xuyunfei/verify047_softmax_backward_20261117/backends/mlu/src/common/common_mlu.h:7:
+/usr/local/neuware/include/cnrt.h:6677: note: this is the location of the previous definition
+ 6677 | #define CNRT_CHECK(val)                                                        \
+      | 
+[105/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/runtime/mlu_runtime_common.cc.o
+In file included from /home/xuyunfei/verify047_softmax_backward_20261117/backends/mlu/src/runtime/mlu_runtime_common.cc:11:
+/home/xuyunfei/verify047_softmax_backward_20261117/backends/mlu/src/common/common_mlu.h:19: warning: "CNRT_CHECK" redefined
+   19 | #define CNRT_CHECK(call)                                                                                               \
+      | 
+In file included from /usr/local/neuware/include/cnnl.h:36,
+                 from /home/xuyunfei/verify047_softmax_backward_20261117/backends/mlu/src/runtime/mlu_runtime_common.h:10,
+                 from /home/xuyunfei/verify047_softmax_backward_20261117/backends/mlu/src/runtime/mlu_runtime_common.cc:1:
+/usr/local/neuware/include/cnrt.h:6677: note: this is the location of the previous definition
+ 6677 | #define CNRT_CHECK(val)                                                        \
+      | 
+[106/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/no_op.cc.o
+[107/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/utils/precision_checker.cc.o
+[108/163] Building CXX object InfiniTrain/CMakeFiles/infini_train.dir/infini_train/src/tensor.cc.o
+[109/163] Linking CXX static library InfiniTrain/libinfini_train.a
+[110/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/fill.cc.o
+[111/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/accumulate_grad.cc.o
+[112/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/embedding.cc.o
+[113/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/layernorm.cc.o
+[114/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/softmax.cc.o
+[115/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/cast.cc.o
+[116/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/elementwise.cc.o
+[117/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/transform.cc.o
+[118/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/cross_entropy.cc.o
+[119/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/accumulate_grad.cc.o
+[120/163] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/linear.cc.o
+[121/163] Linking CXX static library backends/mlu/libinfini_train_mlu.a
+[122/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/concat.cc.o
+[123/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/cross_entropy.cc.o
+[124/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/embedding.cc.o
+[125/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/elementwise.cc.o
+[126/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/fill.cc.o
+[127/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/gather.cc.o
+[128/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/layernorm.cc.o
+[129/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/matmul.cc.o
+[130/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/cast.cc.o
+[131/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/no_op.cc.o
+[132/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/reduction.cc.o
+[133/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/scatter.cc.o
+[134/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/sigmoid.cc.o
+[135/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/outer.cc.o
+[136/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/slice.cc.o
+[137/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/linear.cc.o
+[138/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/softmax.cc.o
+[139/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/split.cc.o
+[140/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/stack.cc.o
+[141/163] cncc accumulate_grad.mlu
+[142/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/swiglu.cc.o
+[143/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/topk.cc.o
+[144/163] cncc cross_entropy.mlu
+[145/163] cncc cast.mlu
+[146/163] Building CXX object InfiniTrain/CMakeFiles/infini_train_cpu_kernels.dir/infini_train/src/kernels/cpu/transform.cc.o
+[147/163] Linking CXX static library InfiniTrain/libinfini_train_cpu_kernels.a
+[148/163] cncc embedding.mlu
+[149/163] cncc fill.mlu
+[150/163] cncc layernorm.mlu
+[151/163] cncc softmax.mlu
+[152/163] cncc elementwise.mlu
+[153/163] cncc transform.mlu
+[154/163] Linking CXX static library backends/mlu/libinfini_train_mlu_kernels.a
+[155/163] Building CXX object backends/mlu/examples/CMakeFiles/mlu_gpt2.dir/__/__/__/third_party/InfiniTrain/example/common/utils.cc.o
+[156/163] Building CXX object backends/mlu/examples/CMakeFiles/mlu_gpt2.dir/__/__/__/third_party/InfiniTrain/example/common/tiny_shakespeare_dataset.cc.o
+[157/163] Building CXX object backends/mlu/examples/CMakeFiles/mlu_gpt2.dir/__/__/__/third_party/InfiniTrain/example/common/tokenizer.cc.o
+[158/163] Building CXX object backends/mlu/examples/CMakeFiles/mlu_gpt2.dir/__/__/__/third_party/InfiniTrain/example/gpt2/checkpoint_loader.cc.o
+[159/163] Building CXX object backends/mlu/tests/CMakeFiles/mlu_op_test.dir/op_test.cc.o
+[160/163] Linking CXX executable op_test
+[161/163] Building CXX object backends/mlu/examples/CMakeFiles/mlu_gpt2.dir/__/__/__/third_party/InfiniTrain/example/gpt2/main.cc.o
+[162/163] Linking CXX executable gpt2

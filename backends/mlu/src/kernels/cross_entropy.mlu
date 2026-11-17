@@ -16,7 +16,7 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 020：NRAM 暂存块元素数。float 下为 32 KiB，远小于厂商示例声明的 393216 B（
+// NRAM 暂存块元素数。float 下为 32 KiB，远小于厂商示例声明的 393216 B（
 // 1_Performance/vectoradd/4_vectorAdd_multicore/vectorAdd_multicore.mlu:41 MAX_NRAM_SIZE），
 // 且为 128 B（NFU 对齐单位）的整数倍；50257 个类 → 6 个整块 + 1 个 1105 元素尾块。
 constexpr int64_t kNramChunkElems = 8192;
@@ -26,18 +26,18 @@ constexpr int64_t kNramChunkElems = 8192;
 // vectoradd/0_scalarAdd_single_core）用的是纯串行循环 + cnrtFuncTypeBlock。
 // 因此历史上所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
 
-// 并行度（017 核对，沿用 015 已证实、016 已复核的同一机制）：本工具链下 dim.x*dim.y*dim.z 是
+// 并行度：本工具链下 dim.x*dim.y*dim.z 是
 // 本次启动占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock
 // 为 1，cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按 sample = taskId、步长
 // taskDim 分片，每个 loss[sample]/grad_row[i] 恰被一个 task 写一次，无需跨 task 同步。
 // 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
 // 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd
 // 与 1_Performance/matmul 的 taskId/taskDim 切分范式。
-// 归约边界（017）：只切 sample，不切 class —— 同一样本的 max 扫描、Σexp 以及反向的 class
+// 归约边界：只切 sample，不切 class —— 同一样本的 max 扫描、Σexp 以及反向的 class
 // 循环仍在该 task 内串行完成，顺序与单任务版逐字相同，故结果与单任务版逐位相同。
 // 历史记录（保留）：上文的“单任务串行”结论源于 cnrtFuncTypeUnion1 + 错误 dim 与
 // “taskIdX*coreDim+coreId” 索引公式的误判，不是对多任务并行的否定；重新核对见
-// 协作沟通/015/Kimi.md K-001 §3 与 017/Kimi.md K-001 §4。
+// See the kernel implementation and public regression tests for this behavior.
 
 template <typename Ttarget, typename Tinput>
 __mlu_global__ void CrossEntropyForwardKernel(const Tinput *input, const Ttarget *target, Tinput *loss, int64_t bs,
@@ -59,14 +59,14 @@ __mlu_global__ void CrossEntropyForwardKernel(const Tinput *input, const Ttarget
     }
 }
 
-// 020：backward 的逐元素 GDRAM 标量访问改为“整块 DMA + NRAM 内标量计算”。
-// 并行分片（017）不变：仍按 sample = taskId、步长 taskDim 切，归约边界不变。
+// backward 的逐元素 GDRAM 标量访问改为“整块 DMA + NRAM 内标量计算”。
+// 并行分片不变：仍按 sample = taskId、步长 taskDim 切，归约边界不变。
 // 依据（均来自本机安装的厂商示例，逐行核对）：1_Performance/vectoradd/4_vectorAdd_multicore/
 // vectorAdd_multicore.mlu:59-64 的 __memcpy(a_nram, a_offset, len*sizeof(float), GDRAM2NRAM) →
 // __bang_add → __memcpy(output_offset, ..., NRAM2GDRAM) 批量搬运范式；0_Concepts_and_Techniques/
 // convolution/main.mlu:76-84 在 kernel 内声明定长 __nram__ 数组并配合两次 __memcpy。
 // 本 kernel 只采用“批量搬运”这一条已被示例证明的语义，不使用 __bang_* 向量算子：向量 exp 与标量
-// expf 的数值等价性没有官方证据（020/Kimi.md K-001 §3），故不引入。
+// See the kernel implementation and public regression tests for this behavior.
 // 因此每个元素的浮点运算次数、顺序与类型转换位置与改造前逐字相同（同一 sample 内仍按 i 升序、
 // 先 max 后 Σexp 再写梯度，expf 调用两次），改变的只是标量访问落在 NRAM 还是 GDRAM 上，
 // 结果应逐位不变。

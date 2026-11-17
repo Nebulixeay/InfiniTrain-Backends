@@ -15,7 +15,7 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 并行度（016 核对，沿用 015 已证实的同一机制）：本工具链下 dim.x*dim.y*dim.z 是本次启动
+// 并行度：本工具链下 dim.x*dim.y*dim.z 是本次启动
 // 占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，
 // cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按 row = taskId、步长 taskDim
 // 分片，每个输出元素恰被一个 task 写一次，无需跨 task 同步。
@@ -28,7 +28,7 @@ constexpr uint32_t kDefaultTaskCount = 4;
 // cnInvokeKernel 100006 CN_ERROR_INVALID_VALUE（1 core 少于 Union1 要求的 4 core，启动被驱动
 // 拒绝），而 dim={4,1,1} 下 taskDim=1、其 “taskIdX*coreDim+coreId” 公式只覆盖 1/4 下标。
 // 故旧结论“多任务/Union1 下循环写 GDRAM 只有首尾落盘”源于错误 dim 与错误索引公式，
-// 不构成对多任务并行的否定；原始日志见协作沟通/001、015/Kimi.md 与 016/Kimi.md K-001。
+// See the kernel implementation and public regression tests for this behavior.
 
 // 行 = (group, inner_idx) 组合，共 outer_size * inner_size 行
 template <typename T>

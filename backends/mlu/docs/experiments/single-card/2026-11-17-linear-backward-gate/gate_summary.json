@@ -1,0 +1,10 @@
+{
+  "return_code": 0,
+  "seconds": 0.736,
+  "numeric_checks": 44,
+  "case_groups": 12,
+  "max_abs_over_numeric_checks": 4.768e-07,
+  "summary_present": true,
+  "failure_token": false,
+  "scope": "small-shape MLU numeric/dtype tests, not a MACA hardware comparison"
+}

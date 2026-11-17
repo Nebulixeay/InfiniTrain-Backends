@@ -1,0 +1,296 @@
+I20261113 16:14:28.939513 140337095527872 main.cc:785] 
+=== Parallel Communication Groups ===
+world_size = 1, config: {DP=1, TP=1, PP=1}
+[Dense Rank View] shape={TP=1, DP=1, PP=1}, order={ TP -> DP -> PP }
+[DP] size=1, unenabled
+[TP] size=1, unenabled
+[PP] size=1, unenabled
+
+I20261113 16:14:28.939644 140337095527872 main.cc:316] total desired batch size: 256 => calculated gradient accumulation steps: 1
+I20261113 16:14:29.496643 140337095527872 checkpoint_loader.cc:104] magic: 20240326 version: 3 block_size: 1024 vocab_size: 50257 n_layer: 12 n_head: 12 n_embd: 768 padded_vocab_size: 50304
+I20261113 16:14:30.205976 140337095527872 main.cc:391] Optimizing 149 model parameters
+I20261113 16:14:30.208084 140337095527872 main.cc:501] Rank 0: start training
+I20261113 16:14:30.208096 140337095527872 checkpoint_manager.cc:48] No checkpoint specified for resume. Starting training from scratch.
+I20261113 16:14:30.208100 140337095527872 main.cc:570] start training
+I20261113 16:14:30.208231 140337095527872 main.cc:630] Rank 0: start forward
+I20261113 16:14:34.338513 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=0 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:14:35.835813 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=0 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1497.3
+I20261113 16:14:35.851458 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=0 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=15.6482
+I20261113 16:14:35.851535 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=0 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.058179
+I20261113 16:14:35.851990 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=0 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.449392
+I20261113 16:14:35.854222 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=0 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1497.36 gemm_bias_ms=16.0976 h2d_ms=2.22552 total_ms=1515.71
+I20261113 16:14:43.382283 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=1 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:14:43.791612 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=1 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.329
+I20261113 16:14:43.798137 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=1 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=6.52564
+I20261113 16:14:43.799019 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=1 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.329 gemm_bias_ms=6.52564 h2d_ms=0.869626 total_ms=416.737
+I20261113 16:14:45.096601 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=2 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:14:48.167711 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=2 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3071.1
+I20261113 16:14:48.188753 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=2 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=21.0469
+I20261113 16:14:48.188864 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=2 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.086789
+I20261113 16:14:48.189542 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=2 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.671629
+I20261113 16:14:48.192734 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=2 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3071.19 gemm_bias_ms=21.7185 h2d_ms=3.18349 total_ms=3096.13
+I20261113 16:15:02.458584 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=3 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:15:04.636524 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=3 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.93
+I20261113 16:15:04.687594 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=3 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=51.0741
+I20261113 16:15:04.688557 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=3 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.93 gemm_bias_ms=51.0741 h2d_ms=0.937495 total_ms=2229.97
+I20261113 16:15:07.142792 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=4 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:15:08.649112 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=4 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1506.32
+I20261113 16:15:08.668691 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=4 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=19.5822
+I20261113 16:15:08.668780 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=4 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.071719
+I20261113 16:15:08.669293 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=4 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.507941
+I20261113 16:15:08.671298 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=4 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1506.39 gemm_bias_ms=20.0901 h2d_ms=1.99691 total_ms=1528.51
+I20261113 16:15:16.311157 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=5 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:15:16.720522 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=5 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.366
+I20261113 16:15:16.728276 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=5 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=7.75358
+I20261113 16:15:16.728918 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=5 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.366 gemm_bias_ms=7.75358 h2d_ms=0.627039 total_ms=417.763
+I20261113 16:15:18.025366 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=6 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:15:21.095145 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=6 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3069.77
+I20261113 16:15:21.117758 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=6 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=22.6159
+I20261113 16:15:21.117861 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=6 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.073399
+I20261113 16:15:21.118516 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=6 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.6475
+I20261113 16:15:21.121707 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=6 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3069.85 gemm_bias_ms=23.2634 h2d_ms=3.18112 total_ms=3096.34
+I20261113 16:15:35.374761 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=7 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:15:37.552346 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=7 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.58
+I20261113 16:15:37.605089 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=7 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=52.7443
+I20261113 16:15:37.606127 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=7 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.58 gemm_bias_ms=52.7443 h2d_ms=0.976834 total_ms=2231.37
+I20261113 16:15:40.058954 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=8 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:15:41.565245 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=8 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1506.29
+I20261113 16:15:41.584874 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=8 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=19.6313
+I20261113 16:15:41.584970 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=8 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.076629
+I20261113 16:15:41.585457 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=8 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.481712
+I20261113 16:15:41.587553 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=8 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1506.37 gemm_bias_ms=20.113 h2d_ms=2.08827 total_ms=1528.6
+I20261113 16:15:49.220700 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=9 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:15:49.630084 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=9 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.386
+I20261113 16:15:49.636397 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=9 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=6.31231
+I20261113 16:15:49.637298 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=9 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.386 gemm_bias_ms=6.31231 h2d_ms=0.890866 total_ms=416.6
+I20261113 16:15:50.933281 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=10 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:15:54.002064 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=10 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3068.78
+I20261113 16:15:54.023649 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=10 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=21.589
+I20261113 16:15:54.023759 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=10 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.081719
+I20261113 16:15:54.024430 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=10 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.665249
+I20261113 16:15:54.027620 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=10 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3068.86 gemm_bias_ms=22.2543 h2d_ms=3.18058 total_ms=3094.34
+I20261113 16:16:08.285970 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=11 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:16:10.463330 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=11 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.36
+I20261113 16:16:10.514651 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=11 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=51.323
+I20261113 16:16:10.515629 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=11 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.36 gemm_bias_ms=51.323 h2d_ms=0.951655 total_ms=2229.66
+I20261113 16:16:12.967914 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=12 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:16:14.474165 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=12 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1506.25
+I20261113 16:16:14.491513 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=12 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=17.3489
+I20261113 16:16:14.491602 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=12 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.071919
+I20261113 16:16:14.492065 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=12 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.456682
+I20261113 16:16:14.494177 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=12 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1506.32 gemm_bias_ms=17.8056 h2d_ms=2.10571 total_ms=1526.26
+I20261113 16:16:22.132657 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=13 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:16:22.541982 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=13 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.327
+I20261113 16:16:22.549215 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=13 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=7.233
+I20261113 16:16:22.550087 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=13 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.327 gemm_bias_ms=7.233 h2d_ms=0.857706 total_ms=417.432
+I20261113 16:16:23.845546 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=14 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:16:26.913418 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=14 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3067.87
+I20261113 16:16:26.938122 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=14 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=24.7063
+I20261113 16:16:26.938302 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=14 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.142138
+I20261113 16:16:26.938917 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=14 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.606191
+I20261113 16:16:26.942106 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=14 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3068.01 gemm_bias_ms=25.3125 h2d_ms=3.18183 total_ms=3096.56
+I20261113 16:16:41.205451 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=15 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:16:43.384401 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=15 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2178.95
+I20261113 16:16:43.437796 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=15 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=53.3987
+I20261113 16:16:43.438645 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=15 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2178.95 gemm_bias_ms=53.3987 h2d_ms=0.811417 total_ms=2233.19
+I20261113 16:16:45.890279 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=16 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:16:47.395856 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=16 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1505.57
+I20261113 16:16:47.412556 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=16 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=16.7029
+I20261113 16:16:47.412683 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=16 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.073039
+I20261113 16:16:47.413132 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=16 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.442663
+I20261113 16:16:47.415151 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=16 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1505.65 gemm_bias_ms=17.1456 h2d_ms=2.01305 total_ms=1524.87
+I20261113 16:16:55.058640 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=17 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:16:55.467920 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=17 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.279
+I20261113 16:16:55.475352 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=17 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=7.43255
+I20261113 16:16:55.476115 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=17 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.279 gemm_bias_ms=7.43255 h2d_ms=0.748698 total_ms=417.475
+I20261113 16:16:56.772718 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=18 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:16:59.841473 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=18 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3068.75
+I20261113 16:16:59.869584 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=18 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=28.1148
+I20261113 16:16:59.869688 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=18 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.077739
+I20261113 16:16:59.870303 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=18 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.608131
+I20261113 16:16:59.873476 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=18 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3068.83 gemm_bias_ms=28.7229 h2d_ms=3.16217 total_ms=3100.76
+I20261113 16:17:14.127075 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=19 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:17:16.304554 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=19 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.47
+I20261113 16:17:16.365695 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=19 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=61.1455
+I20261113 16:17:16.366694 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=19 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.47 gemm_bias_ms=61.1455 h2d_ms=0.968205 total_ms=2239.62
+I20261113 16:17:18.819153 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=20 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:17:20.324896 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=20 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1505.74
+I20261113 16:17:20.342656 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=20 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=17.7616
+I20261113 16:17:20.342760 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=20 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.084258
+I20261113 16:17:20.343235 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=20 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.469533
+I20261113 16:17:20.345460 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=20 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1505.82 gemm_bias_ms=18.2312 h2d_ms=2.18541 total_ms=1526.31
+I20261113 16:17:27.936893 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=21 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:17:28.345978 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=21 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.086
+I20261113 16:17:28.351919 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=21 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=5.94071
+I20261113 16:17:28.352826 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=21 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.086 gemm_bias_ms=5.94071 h2d_ms=0.894526 total_ms=415.934
+I20261113 16:17:29.648908 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=22 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:17:32.718185 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=22 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3069.27
+I20261113 16:17:32.738422 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=22 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=20.2395
+I20261113 16:17:32.738529 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=22 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.080309
+I20261113 16:17:32.739172 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=22 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.636859
+I20261113 16:17:32.742399 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=22 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3069.35 gemm_bias_ms=20.8763 h2d_ms=3.21956 total_ms=3093.49
+I20261113 16:17:47.000804 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=23 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:17:49.178404 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=23 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.6
+I20261113 16:17:49.231540 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=23 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=53.1374
+I20261113 16:17:49.232521 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=23 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.6 gemm_bias_ms=53.1374 h2d_ms=0.953594 total_ms=2231.72
+I20261113 16:17:51.684378 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=24 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:17:53.190096 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=24 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1505.72
+I20261113 16:17:53.207915 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=24 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=17.82
+I20261113 16:17:53.208007 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=24 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.073209
+I20261113 16:17:53.208493 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=24 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.479502
+I20261113 16:17:53.210526 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=24 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1505.79 gemm_bias_ms=18.2995 h2d_ms=2.02445 total_ms=1526.15
+I20261113 16:18:00.862937 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=25 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:18:01.272283 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=25 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.348
+I20261113 16:18:01.279456 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=25 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=7.17202
+I20261113 16:18:01.280364 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=25 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.348 gemm_bias_ms=7.17202 h2d_ms=0.894466 total_ms=417.429
+I20261113 16:18:02.576249 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=26 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:18:05.644189 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=26 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3067.94
+I20261113 16:18:05.671720 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=26 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=27.5339
+I20261113 16:18:05.671845 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=26 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.098728
+I20261113 16:18:05.672494 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=26 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.64283
+I20261113 16:18:05.675691 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=26 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3068.03 gemm_bias_ms=28.1767 h2d_ms=3.18719 total_ms=3099.44
+I20261113 16:18:19.929327 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=27 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:18:22.106968 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=27 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.64
+I20261113 16:18:22.160694 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=27 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=53.7298
+I20261113 16:18:22.161690 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=27 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.64 gemm_bias_ms=53.7298 h2d_ms=0.971094 total_ms=2232.36
+I20261113 16:18:24.614298 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=28 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:18:26.120397 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=28 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1506.1
+I20261113 16:18:26.143103 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=28 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=22.7074
+I20261113 16:18:26.143786 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=28 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.665029
+I20261113 16:18:26.144251 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=28 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.449273
+I20261113 16:18:26.146154 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=28 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1506.76 gemm_bias_ms=23.1567 h2d_ms=1.89455 total_ms=1531.86
+I20261113 16:18:33.763293 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=29 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:18:34.172533 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=29 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.241
+I20261113 16:18:34.179114 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=29 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=6.58042
+I20261113 16:18:34.180026 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=29 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.241 gemm_bias_ms=6.58042 h2d_ms=0.866406 total_ms=416.733
+I20261113 16:18:35.476412 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=30 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:18:38.544028 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=30 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3067.61
+I20261113 16:18:38.564464 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=30 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=20.4383
+I20261113 16:18:38.564582 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=30 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.096149
+I20261113 16:18:38.565161 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=30 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.573121
+I20261113 16:18:38.568369 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=30 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3067.71 gemm_bias_ms=21.0115 h2d_ms=3.20087 total_ms=3091.96
+I20261113 16:18:52.829845 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=31 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:18:55.007440 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=31 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.59
+I20261113 16:18:55.063787 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=31 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=56.3482
+I20261113 16:18:55.064966 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=31 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.59 gemm_bias_ms=56.3482 h2d_ms=1.13419 total_ms=2235.12
+I20261113 16:18:57.520491 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=32 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:18:59.026572 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=32 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1506.08
+I20261113 16:18:59.048957 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=32 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=22.386
+I20261113 16:18:59.049060 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=32 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.087739
+I20261113 16:18:59.049546 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=32 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.479532
+I20261113 16:18:59.051659 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=32 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1506.17 gemm_bias_ms=22.8655 h2d_ms=2.10529 total_ms=1531.17
+I20261113 16:19:06.701548 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=33 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:19:07.111480 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=33 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.934
+I20261113 16:19:07.118955 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=33 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=7.47539
+I20261113 16:19:07.120035 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=33 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.934 gemm_bias_ms=7.47539 h2d_ms=1.06451 total_ms=418.49
+I20261113 16:19:08.416573 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=34 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:19:11.486432 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=34 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3069.85
+I20261113 16:19:11.509083 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=34 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=22.6552
+I20261113 16:19:11.509240 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=34 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.127718
+I20261113 16:19:11.509870 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=34 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.622679
+I20261113 16:19:11.513050 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=34 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3069.98 gemm_bias_ms=23.2779 h2d_ms=3.17279 total_ms=3096.48
+I20261113 16:19:25.778829 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=35 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:19:27.957686 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=35 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2178.85
+I20261113 16:19:28.014168 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=35 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=56.4795
+I20261113 16:19:28.015396 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=35 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2178.85 gemm_bias_ms=56.4795 h2d_ms=1.07269 total_ms=2236.57
+I20261113 16:19:30.467321 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=36 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:19:31.954440 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=36 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1487.12
+I20261113 16:19:31.975722 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=36 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=21.2721
+I20261113 16:19:31.975962 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=36 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.148638
+I20261113 16:19:31.976576 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=36 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.60796
+I20261113 16:19:31.979311 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=36 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1487.26 gemm_bias_ms=21.8801 h2d_ms=2.72655 total_ms=1511.99
+I20261113 16:19:39.625954 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=37 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:19:40.031335 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=37 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=405.383
+I20261113 16:19:40.038171 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=37 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=6.83493
+I20261113 16:19:40.039049 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=37 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=405.383 gemm_bias_ms=6.83493 h2d_ms=0.862856 total_ms=413.097
+I20261113 16:19:41.335828 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=38 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:19:44.385575 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=38 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3049.74
+I20261113 16:19:44.406639 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=38 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=21.0702
+I20261113 16:19:44.406777 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=38 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.086338
+I20261113 16:19:44.407411 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=38 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.62582
+I20261113 16:19:44.410594 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=38 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3049.83 gemm_bias_ms=21.6961 h2d_ms=3.17379 total_ms=3074.77
+I20261113 16:19:58.676062 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=39 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:20:00.853780 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=39 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2177.7
+I20261113 16:20:00.910713 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=39 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=56.9403
+I20261113 16:20:00.911819 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=39 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2177.7 gemm_bias_ms=56.9403 h2d_ms=0.997644 total_ms=2235.76
+I20261113 16:20:03.364309 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=40 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:20:04.871732 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=40 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1507.42
+I20261113 16:20:04.890554 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=40 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=18.8247
+I20261113 16:20:04.890650 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=40 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.080569
+I20261113 16:20:04.891096 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=40 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.439783
+I20261113 16:20:04.893220 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=40 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1507.5 gemm_bias_ms=19.2645 h2d_ms=2.1181 total_ms=1528.91
+I20261113 16:20:12.529088 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=41 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:20:12.938556 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=41 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=409.468
+I20261113 16:20:12.945585 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=41 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=7.02881
+I20261113 16:20:12.946474 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=41 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=409.468 gemm_bias_ms=7.02881 h2d_ms=0.874975 total_ms=417.387
+I20261113 16:20:14.242761 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=42 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:20:17.311765 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=42 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3068.99
+I20261113 16:20:17.334804 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=42 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=23.0481
+I20261113 16:20:17.334936 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=42 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.090919
+I20261113 16:20:17.335568 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=42 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.625
+I20261113 16:20:17.338768 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=42 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3069.08 gemm_bias_ms=23.6731 h2d_ms=3.15906 total_ms=3096.01
+I20261113 16:20:31.601233 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=43 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:20:33.780144 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=43 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2178.91
+I20261113 16:20:33.840065 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=43 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=59.9254
+I20261113 16:20:33.841143 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=43 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2178.91 gemm_bias_ms=59.9254 h2d_ms=1.04953 total_ms=2239.91
+I20261113 16:20:36.293347 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=44 rows=256 in_features=768 out_features=2304 has_bias=1 phase=enter
+I20261113 16:20:37.800140 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=44 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=1506.79
+I20261113 16:20:37.819795 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=44 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_gemm gemm_ms=19.6568
+I20261113 16:20:37.819889 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=44 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.075049
+I20261113 16:20:37.820377 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=44 rows=256 in_features=768 out_features=2304 has_bias=1 phase=after_bias_add bias_add_ms=0.480842
+I20261113 16:20:37.822492 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=44 rows=256 in_features=768 out_features=2304 has_bias=1 phase=done tohost_ms=1506.87 gemm_bias_ms=20.1377 h2d_ms=2.10902 total_ms=1529.15
+I20261113 16:20:45.466495 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=45 rows=256 in_features=768 out_features=768 has_bias=0 phase=enter
+I20261113 16:20:45.870619 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=45 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=404.125
+I20261113 16:20:45.876776 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=45 rows=256 in_features=768 out_features=768 has_bias=0 phase=after_gemm gemm_ms=6.1567
+I20261113 16:20:45.877670 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=45 rows=256 in_features=768 out_features=768 has_bias=0 phase=done tohost_ms=404.125 gemm_bias_ms=6.1567 h2d_ms=0.880596 total_ms=411.176
+I20261113 16:20:47.175555 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=46 rows=256 in_features=768 out_features=3072 has_bias=1 phase=enter
+I20261113 16:20:50.226419 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=46 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_tohost_input_weight tohost_input_weight_ms=3050.86
+I20261113 16:20:50.387331 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=46 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_gemm gemm_ms=160.913
+I20261113 16:20:50.387470 140337095527872 linear.cc:205] [MLU_LINEAR_PROFILE] call=46 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_tohost bias_tohost_ms=0.103958
+I20261113 16:20:50.388087 140337095527872 linear.cc:215] [MLU_LINEAR_PROFILE] call=46 rows=256 in_features=768 out_features=3072 has_bias=1 phase=after_bias_add bias_add_ms=0.61225
+I20261113 16:20:50.391306 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=46 rows=256 in_features=768 out_features=3072 has_bias=1 phase=done tohost_ms=3050.96 gemm_bias_ms=161.525 h2d_ms=3.21011 total_ms=3215.75
+I20261113 16:21:04.645783 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=47 rows=256 in_features=3072 out_features=768 has_bias=0 phase=enter
+I20261113 16:21:06.804275 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=47 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=2158.49
+I20261113 16:21:06.857829 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=47 rows=256 in_features=3072 out_features=768 has_bias=0 phase=after_gemm gemm_ms=53.5563
+I20261113 16:21:06.858819 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=47 rows=256 in_features=3072 out_features=768 has_bias=0 phase=done tohost_ms=2158.49 gemm_bias_ms=53.5563 h2d_ms=0.962744 total_ms=2213.04
+I20261113 16:21:09.311453 140337095527872 linear.cc:176] [MLU_LINEAR_PROFILE] call=48 rows=256 in_features=768 out_features=50257 has_bias=0 phase=enter
+I20261113 16:21:36.289126 140337095527872 linear.cc:185] [MLU_LINEAR_PROFILE] call=48 rows=256 in_features=768 out_features=50257 has_bias=0 phase=after_tohost_input_weight tohost_input_weight_ms=26977.7
+I20261113 16:21:50.311107 140337095527872 linear.cc:195] [MLU_LINEAR_PROFILE] call=48 rows=256 in_features=768 out_features=50257 has_bias=0 phase=after_gemm gemm_ms=14022
+I20261113 16:21:50.367055 140337095527872 linear.cc:225] [MLU_LINEAR_PROFILE] call=48 rows=256 in_features=768 out_features=50257 has_bias=0 phase=done tohost_ms=26977.7 gemm_bias_ms=14022 h2d_ms=55.7754 total_ms=41055.6
+I20261113 16:21:50.368270 140337095527872 main.cc:634] Rank 0: finish model forward, start loss forward
+I20261113 16:22:29.893681 140337095527872 main.cc:644] Rank 0: finish loss forward
+I20261113 16:22:29.893743 140337095527872 main.cc:646] Rank 0: start backward
+F20261113 16:23:47.708807 140337095527872 accumulate_grad.cc:24] Check failed: gradient->Dtype() == tensor->Dtype() MLU AccumulateGrad dtype mismatch: grad=fp32 param=bf16 (refusing to reinterpret memory)
+    @     0x55de68b4ecba  google::LogMessage::Fail()
+    @     0x55de68b4f143  google::LogMessageFatal::~LogMessageFatal()
+    @     0x55de689f4547  infini_train::kernels::mlu::AccumulateGrad(std::shared_ptr<infini_train::Tensor> const&, float, std::shared_ptr<infini_train::Tensor> const&)
+    @     0x55de68a23cb0  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+    @     0x55de68a21fb3  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+    @     0x55de68a2430c  infini_train::autograd::Function::BackwardPartial(std::shared_ptr<infini_train::Tensor>, int)
+timeout: the monitored command dumped core

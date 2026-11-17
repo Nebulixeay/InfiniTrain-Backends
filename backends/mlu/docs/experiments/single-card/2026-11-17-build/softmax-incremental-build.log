@@ -1,0 +1,6 @@
+ninja: Entering directory `bdir'
+[0/2] Re-checking globbed directories...
+[1/5] Building CXX object backends/mlu/CMakeFiles/infini_train_mlu.dir/src/kernels/softmax.cc.o
+[2/5] Linking CXX static library backends/mlu/libinfini_train_mlu.a
+[3/5] Linking CXX executable op_test
+[4/5] Linking CXX executable gpt2

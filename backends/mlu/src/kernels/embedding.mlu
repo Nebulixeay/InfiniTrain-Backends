@@ -41,7 +41,7 @@ __mlu_global__ void EmbeddingBackwardKernel(const int64_t *input, const T *grad_
     // 指针）在 MLU590 上实测会触发队列错误（CN_INVOKE_ERROR）。
     // 改为"一个核负责若干词表行，串行扫所有 token"：每行只有一个写者，无需原子；
     // 累加顺序按 token 升序，结果确定、可复现（精度优先，性能属任务三）。
-    // TODO(BF16-MUST-FIX, 001-P2 F07): 当前内层把 float 结果立即写回 T，FP32 下无损，
+    // TODO(BF16-MUST-FIX): 当前内层把 float 结果立即写回 T，FP32 下无损，
     // 但 BF16/FP16 会逐 token 舍入，不能称为“FP32 中间累加”。BF16 阶段必须改为
     // 块内 float 累加、最后一次转换。
     for (int64_t row = 0; row < vocab_size; ++row) {

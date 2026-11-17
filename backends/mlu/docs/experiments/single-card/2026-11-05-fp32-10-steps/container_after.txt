@@ -1,0 +1,12 @@
+=== container post-run checks ===
+2026-11-05 15:26:18 +0800
+=== residual processes ===
+=== core dumps / cndump (stage) ===
+=== core dumps / cndump (home) ===
+=== stage tree (top) ===
+total 8
+drwxr-x--- 5 1001 root  313 Nov  5 13:22 bdir
+drwxrwxr-x 2 1001 1001 4096 Nov  5 15:26 inputs
+drwxr-xr-x 7 1001 root 4096 Nov  4 14:54 provider
+=== train.log line count ===
+2514 /home/xuyunfei/verify023_023-implement-p1-v1-g14-20261105/inputs/train.log

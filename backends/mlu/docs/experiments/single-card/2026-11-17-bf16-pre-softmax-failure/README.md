@@ -1,0 +1,19 @@
+# BF16 failure before the Softmax correction
+
+Step1=5.314695, step2=NaN. The run was stopped by the nonfinite-loss guard (SIGTERM, rc -15). This failure is preserved to explain the correction; it is not a successful ten-step experiment.
+
+Original evidence files are copied byte for byte. `manifest.json` records their SHA-256 hashes. Runtime commands and binary/source identities are in the linked metadata.
+
+- [argv.json](argv.json)
+- [cnmon_after.txt](cnmon_after.txt)
+- [cnmon_before.txt](cnmon_before.txt)
+- [container_after.txt](container_after.txt)
+- [identity_after.json](identity_after.json)
+- [identity_before.json](identity_before.json)
+- [loss.csv](loss.csv)
+- [manifest.json](manifest.json)
+- [reference_comparison.json](reference_comparison.json)
+- [result.json](result.json)
+- [seconds.txt](seconds.txt)
+- [train.log](train.log)
+- [train.rc](train.rc)

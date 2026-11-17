@@ -3,3 +3,6 @@
 *.mlu text eol=lf
 *.cc text eol=lf
 *.h text eol=lf
+
+# Preserve original log line endings/trailing spaces for SHA-256 verification.
+backends/mlu/docs/experiments/** -text whitespace=-trailing-space,cr-at-eol

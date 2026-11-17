@@ -105,7 +105,7 @@ int64_t NumElementsOf(const std::vector<int64_t> &dims) {
     return std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<int64_t>());
 }
 
-// NOTE(014-P1 v1) 分段计时临时探针：仅 MLU_LINEAR_PROFILE=1 时生效，默认零日志、零行为变化。
+// NOTE 分段计时临时探针：仅 MLU_LINEAR_PROFILE=1 时生效，默认零日志、零行为变化。
 // 开关语义沿用 mlu_debug.h 的约定：unset / "0" / "false" 关闭，其它值开启。
 bool LinearProfileEnabled() {
     static const bool enabled = [] {
@@ -240,7 +240,8 @@ std::shared_ptr<Tensor> LinearBackwardInput(const std::shared_ptr<Tensor> &weigh
                                             const std::vector<int64_t> &input_dims) {
     const auto compute_dtype = weight->Dtype();
     auto grad_compute = grad_output->Dtype() == compute_dtype
-                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+                          ? grad_output
+                          : std::make_shared<Tensor>(grad_output->To(compute_dtype));
     // Match MACA's temporary backward output policy until autograd/autocast owns this conversion.
     const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
     auto grad_input = std::make_shared<Tensor>(input_dims, output_dtype, grad_output->GetDevice());
@@ -271,7 +272,8 @@ std::shared_ptr<Tensor> LinearBackwardWeight(const std::shared_ptr<Tensor> &inpu
         = transpose ? std::vector<int64_t>{out_features, in_features} : std::vector<int64_t>{in_features, out_features};
     const auto compute_dtype = input->Dtype();
     auto grad_compute = grad_output->Dtype() == compute_dtype
-                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+                          ? grad_output
+                          : std::make_shared<Tensor>(grad_output->To(compute_dtype));
     const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
     auto grad_weight = std::make_shared<Tensor>(weight_dims, output_dtype, grad_output->GetDevice());
     const int64_t rows = input->NumElements() / in_features;
@@ -356,7 +358,8 @@ std::shared_ptr<Tensor> MatmulBackwardInput(const std::shared_ptr<Tensor> &other
 
     const auto compute_dtype = other->Dtype();
     auto grad_compute = grad_output->Dtype() == compute_dtype
-                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+                          ? grad_output
+                          : std::make_shared<Tensor>(grad_output->To(compute_dtype));
     const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
     auto grad_input = std::make_shared<Tensor>(input_dims, output_dtype, grad_output->GetDevice());
     auto g_host = ToHostFloat(grad_compute, grad_compute->GetDevice().type());
@@ -385,7 +388,8 @@ std::shared_ptr<Tensor> MatmulBackwardOther(const std::shared_ptr<Tensor> &input
 
     const auto compute_dtype = input1->Dtype();
     auto grad_compute = grad_output->Dtype() == compute_dtype
-                            ? grad_output : std::make_shared<Tensor>(grad_output->To(compute_dtype));
+                          ? grad_output
+                          : std::make_shared<Tensor>(grad_output->To(compute_dtype));
     const auto output_dtype = compute_dtype == DataType::kBFLOAT16 ? DataType::kFLOAT32 : compute_dtype;
     auto grad_other = std::make_shared<Tensor>(other_dims, output_dtype, grad_output->GetDevice());
     auto a_host = ToHostFloat(input1, input1->GetDevice().type());

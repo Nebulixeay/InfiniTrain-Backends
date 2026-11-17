@@ -1,0 +1,1 @@
+/home/xuyunfei/verify047_softmax_backward_20261117/bdir/op_test --softmax-backward-gate --device 0

@@ -16,7 +16,7 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 并行度（016 核对，沿用 015 已证实的同一机制）：本工具链下 dim.x*dim.y*dim.z 是本次启动
+// 并行度：本工具链下 dim.x*dim.y*dim.z 是本次启动
 // 占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，
 // cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按输出线性下标
 // idx = taskId、步长 taskDim 分片，每个输出元素恰被一个 task 写一次，无需跨 task 同步。
@@ -27,7 +27,7 @@ constexpr uint32_t kDefaultTaskCount = 4;
 // cnInvokeKernel 100006 CN_ERROR_INVALID_VALUE（1 core 少于 Union1 要求的 4 core，启动被驱动
 // 拒绝），而 dim={4,1,1} 下 taskDim=1、其 “taskIdX*coreDim+coreId” 公式只覆盖 1/4 下标。
 // 故旧结论“多任务/Union1 下循环写 GDRAM 只有首尾落盘”源于错误 dim 与错误索引公式，
-// 不构成对多任务并行的否定；原始日志见协作沟通/001、015/Kimi.md 与 016/Kimi.md K-001。
+// See the kernel implementation and public regression tests for this behavior.
 
 // ----------------------------- Tril / Triu -----------------------------
 // 前向反向同形：满足条件保留原值，否则置 0
@@ -79,7 +79,7 @@ __mlu_global__ void SliceForwardKernel(const T *input, T *output, MluIndexMeta m
 }
 
 // grad_input 调用前必须已清零（Fill 在同一 queue 上先行完成，与下面的分散写不构成竞争）。
-// 并行安全性（016/K-001 §5 C3）：in_index = Σ_i (starts[i] + idx_i*steps[i]) * in_strides[i]，
+// 并行安全性：in_index = Σ_i (starts[i] + idx_i*steps[i]) * in_strides[i]，
 // 对 steps[i] >= 1，out_coord 是双射、in_strides 是输入的非退化行主序步长，故 out_idx -> in_index
 // 为单射：不同 task 不会写同一个 grad_input 元素，无需 atomic，结果确定。
 template <typename T>

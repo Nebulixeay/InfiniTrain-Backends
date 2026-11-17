@@ -107,9 +107,9 @@ clang-format、clang-tidy 和 IWYU 的范围、依赖及手动使用方式见
 
 ## 寒武纪 MLU 后端（开发中）
 
-`backends/mlu` 通过 `PrivateUse1` 注册名为 `mlu` 的后端。小 shape 的 FP32 算子
-和设备数学函数已有回归工具覆盖；设备 GEMM、完整 GPT-2 十步精度、BF16 和多卡
-集合通信**尚未完成**。
+`backends/mlu` 通过 `PrivateUse1` 注册名为 `mlu` 的后端。当前 BF16 单卡配置已完成
+十步训练，FP32 单步回归与历史 MLU 首步一致。算子回归、完整训练日志及单独标注版本的
+历史十步结果见下方验证文档。
 
 ```bash
 cmake -S . -B build-mlu -G Ninja \

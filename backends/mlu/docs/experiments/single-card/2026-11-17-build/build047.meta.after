@@ -1,0 +1,8 @@
+build_rc=0
+build_secs=86
+binary_path=/home/xuyunfei/verify047_softmax_backward_20261117/bdir/gpt2
+binary_sha256=01f051a153d08701040399f4c62df89ed7f9d48ffa9d7e0d866b748d98cd698c
+binary_size=4855224
+policy_layernorm_hits=2
+policy_layernorm_typo_hits=0
+function_recast_hits=0

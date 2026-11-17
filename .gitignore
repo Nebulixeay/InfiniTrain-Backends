@@ -5,6 +5,7 @@
 /compile_commands.json
 
 *.log
+!backends/mlu/docs/experiments/**/*.log
 *.report.rank*
 *.records.log.rank*
 

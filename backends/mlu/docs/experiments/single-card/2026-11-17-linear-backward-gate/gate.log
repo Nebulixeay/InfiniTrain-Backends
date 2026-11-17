@@ -1,0 +1,59 @@
+op_test: device=0 inject_finite=0 inject_nan=0
+bf16 gate linear fwd vs double(rounded)    PASS  n=21     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=0.01721191 got=0.01721191
+bf16 gate linear dx vs double              PASS  n=15     max_abs=7.451e-09   max_rel=8.408e-08   bad=0   worst[5] ref=0.08861091 got=0.08861092
+bf16 gate linear dw vs double              PASS  n=35     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.3653515 got=-0.3653515
+bf16 gate linear db vs double              PASS  n=7      max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.00302124 got=-0.00302124
+[bwd] case=bf16 gate linear device=0 stream=0x561bc6e06aa0 sync=blocking_Memcpy_current_queue host_read_after_tohost_returned internal_check=CNRT_CHECK
+backward_dtype_case compute=fp32 incoming=fp32 batches=1 transpose=0
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=1.192e-07   max_rel=3.092e-07   bad=0   worst[1] ref=-1.466748 got=-1.466747
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=4.768e-07   max_rel=2.566e-07   bad=0   worst[29] ref=4.525688 got=4.525688
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=1.192e-07   max_rel=6.490e-08   bad=0   worst[3] ref=1.83683 got=1.83683
+MatmulBackwardInput dtype+numeric          PASS  n=15     max_abs=1.192e-07   max_rel=3.092e-07   bad=0   worst[1] ref=-1.466748 got=-1.466747
+MatmulBackwardOther dtype+numeric          PASS  n=35     max_abs=4.768e-07   max_rel=2.566e-07   bad=0   worst[29] ref=4.525688 got=4.525688
+backward_dtype_case compute=fp32 incoming=fp32 batches=1 transpose=1
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=1.192e-07   max_rel=4.264e-07   bad=0   worst[4] ref=1.933413 got=1.933413
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=4.768e-07   max_rel=2.566e-07   bad=0   worst[9] ref=4.525688 got=4.525688
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=1.192e-07   max_rel=6.490e-08   bad=0   worst[3] ref=1.83683 got=1.83683
+backward_dtype_case compute=fp32 incoming=fp32 batches=2 transpose=0
+MatmulBackwardInput dtype+numeric          PASS  n=30     max_abs=2.384e-07   max_rel=1.644e-06   bad=0   worst[18] ref=2.35433 got=2.35433
+MatmulBackwardOther dtype+numeric          PASS  n=70     max_abs=4.768e-07   max_rel=4.417e-07   bad=0   worst[29] ref=4.525688 got=4.525688
+backward_dtype_case compute=fp32 incoming=bf16 batches=1 transpose=0
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=2.384e-07   max_rel=2.659e-07   bad=0   worst[7] ref=1.823987 got=1.823987
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=1.192e-07   max_rel=9.588e-08   bad=0   worst[3] ref=-1.561725 got=-1.561725
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.5625 got=-0.5625
+MatmulBackwardInput dtype+numeric          PASS  n=15     max_abs=2.384e-07   max_rel=2.659e-07   bad=0   worst[7] ref=1.823987 got=1.823987
+MatmulBackwardOther dtype+numeric          PASS  n=35     max_abs=1.192e-07   max_rel=9.588e-08   bad=0   worst[3] ref=-1.561725 got=-1.561725
+backward_dtype_case compute=fp32 incoming=bf16 batches=1 transpose=1
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=1.192e-07   max_rel=9.400e-07   bad=0   worst[1] ref=0.8178164 got=0.8178165
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=1.192e-07   max_rel=9.588e-08   bad=0   worst[7] ref=1.768479 got=1.768479
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.5625 got=-0.5625
+backward_dtype_case compute=fp32 incoming=bf16 batches=2 transpose=0
+MatmulBackwardInput dtype+numeric          PASS  n=30     max_abs=2.384e-07   max_rel=6.364e-07   bad=0   worst[7] ref=1.823987 got=1.823987
+MatmulBackwardOther dtype+numeric          PASS  n=70     max_abs=1.192e-07   max_rel=5.535e-07   bad=0   worst[3] ref=-1.561725 got=-1.561725
+backward_dtype_case compute=bf16 incoming=fp32 batches=1 transpose=0
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.1310196 got=-0.1310196
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=1.192e-07   max_rel=6.490e-08   bad=0   worst[3] ref=1.83683 got=1.83683
+MatmulBackwardInput dtype+numeric          PASS  n=15     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.1310196 got=-0.1310196
+MatmulBackwardOther dtype+numeric          PASS  n=35     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+backward_dtype_case compute=bf16 incoming=fp32 batches=1 transpose=1
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=0.4217157 got=0.4217157
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=1.192e-07   max_rel=6.490e-08   bad=0   worst[3] ref=1.83683 got=1.83683
+backward_dtype_case compute=bf16 incoming=fp32 batches=2 transpose=0
+MatmulBackwardInput dtype+numeric          PASS  n=30     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.1310196 got=-0.1310196
+MatmulBackwardOther dtype+numeric          PASS  n=70     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+backward_dtype_case compute=bf16 incoming=bf16 batches=1 transpose=0
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.1310196 got=-0.1310196
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.5625 got=-0.5625
+MatmulBackwardInput dtype+numeric          PASS  n=15     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.1310196 got=-0.1310196
+MatmulBackwardOther dtype+numeric          PASS  n=35     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+backward_dtype_case compute=bf16 incoming=bf16 batches=1 transpose=1
+LinearBackwardInput dtype+numeric          PASS  n=15     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=0.4217157 got=0.4217157
+LinearBackwardWeight dtype+numeric         PASS  n=35     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+LinearBackwardBias dtype+numeric           PASS  n=7      max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.5625 got=-0.5625
+backward_dtype_case compute=bf16 incoming=bf16 batches=2 transpose=0
+MatmulBackwardInput dtype+numeric          PASS  n=30     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.1310196 got=-0.1310196
+MatmulBackwardOther dtype+numeric          PASS  n=70     max_abs=0.000e+00   max_rel=0.000e+00   bad=0   worst[0] ref=-0.6745071 got=-0.6745071
+LINEAR_BACKWARD_GATE: PASS

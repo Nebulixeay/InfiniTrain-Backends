@@ -65,9 +65,10 @@ std::shared_ptr<Tensor> SoftmaxBackward(const std::shared_ptr<Tensor> &grad_outp
     // Match CUDA: both pointers and the result must use the promoted dtype.
     const auto promoted_type = PromoteDataTypes(grad_output->Dtype(), output->Dtype());
     auto grad_output_promoted = grad_output->Dtype() == promoted_type
-                                    ? grad_output : std::make_shared<Tensor>(grad_output->To(promoted_type));
-    auto output_promoted = output->Dtype() == promoted_type
-                               ? output : std::make_shared<Tensor>(output->To(promoted_type));
+                                  ? grad_output
+                                  : std::make_shared<Tensor>(grad_output->To(promoted_type));
+    auto output_promoted
+        = output->Dtype() == promoted_type ? output : std::make_shared<Tensor>(output->To(promoted_type));
     const auto &output_dims = output->Dims();
     dim = dim < 0 ? dim + output_dims.size() : dim;
     CHECK(dim >= 0 && dim < static_cast<int64_t>(output_dims.size()));

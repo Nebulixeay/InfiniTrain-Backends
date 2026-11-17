@@ -1,0 +1,17 @@
+candidate_commit=2150ed747d9a5acfed6d82d30c408599d4abfe1c
+framework_commit=e19a56dcb56bec11f1af63c089a1e8ae03ff24c7
+stage=/home/xuyunfei/verify047_softmax_backward_20261117
+source_state=2150ed7 plus source047.diff
+c40e04727cc7ebe6240d7855f1473fc1eb9aa9e6234315caf0f2b2cb36c475ce  backends/mlu/src/kernels/linear.cc
+a99fa9842637d39ca8570a12b6f969bc418a1f130ba8839b34c7558dad34d2d8  backends/mlu/tests/op_test.cc
+date=2026-11-17 12:09:03 +0800
+host=f9dacafc16b8
+uid=1001
+cncc=cncc 5.7.6 mlvm 1.4 clang version 11.1.0
+cmake=cmake version 4.4.5
+ninja=1.13.2
+autocast_h_sha256=c16df055edb9c59423bca729d90896dd350a3bd03281081631c25394cae66fa4
+function_cc_sha256=c6699b3ce8ba24cd1d4dac249c7b9f6513f1295a4bf0293d5c8681139f4f0c45
+elementwise_cc_sha256=31cae088a62ca1a257b526ce2545c0af4c07501bdedaa503d538d45ad0654f07
+layernorm_cc_sha256=425afefd24de025985e049f1490d47a8e03afb2bbc0427f83e34a02b720d9fe8
+configure_args=-G Ninja -S /home/xuyunfei/verify047_softmax_backward_20261117 -B /home/xuyunfei/verify047_softmax_backward_20261117/bdir -DINFINITRAIN_BACKEND=mlu -DUSE_CUDA=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DINFINITRAIN_MLU_BUILD_TEST_TOOLS=ON

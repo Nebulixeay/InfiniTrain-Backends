@@ -1,0 +1,29 @@
+=== 023 十步 loss 与 A100 参考的严格工具比较 ===
+2026-11-05 15:26:58 +0800
+actual=train.log sha256=85bf29b03c1189f03f9cd5b78d78fe7c66568bebce485bcf53c71f4c02daa50e
+registry sha256=f3433aa3af625346ea6661523f83498b498497d9b92660f6e2d23bc7ee27a07d
+tool sha256=e9fcccc3c926ebbbb7103eee1e804bb4969961d2315ca61d8e5e03f2c3717e37
+
+--- diagnostic 模式（唯一可用模式）---
+step            ref         actual     abs_diff     rel_diff     ok
+   1       5.356192       5.356084    1.080e-04    2.016e-05   FAIL
+   2       5.060585       5.060423    1.620e-04    3.201e-05   FAIL
+   3       4.860328       4.860268    6.000e-05    1.234e-05   FAIL
+   4       4.961310       4.961235    7.500e-05    1.512e-05   FAIL
+   5       4.888239       4.888132    1.070e-04    2.189e-05   FAIL
+   6       5.099205       5.099115    9.000e-05    1.765e-05   FAIL
+   7       4.860473       4.860406    6.700e-05    1.378e-05   FAIL
+   8       4.945070       4.944980    9.000e-05    1.820e-05   FAIL
+   9       5.121134       5.121128    6.000e-06    1.172e-06     ok
+  10       5.270753       5.270833    8.000e-05    1.518e-05   FAIL
+criterion: fp32 max_abs<=1e-5 (source=user_pdf_and_a100_log)
+comparison policy: error denominator, zero-reference and <= boundary rules are program_convention
+reference: public_pdf_and_log role=primary exit_code=public_reference_exit_unknown source_commit=5a0f27a5c4e26498f6fa0a6421aff4a989d78617
+mode: diagnostic acceptance_ready: False
+DIAGNOSTIC_FAIL (worst step 2 metric 1.620e-04, 9 of 10 over limit); acceptance_ready=false
+rc=2
+
+--- formal 模式（预期被 registry 门禁拒绝，仅记录）---
+REJECT: formal mode rejects unknown_fields=['weights_sha256', 'data_sha256'] (values usable for diagnostics only)
+RESULT: REJECTED (not a pass)
+rc=3

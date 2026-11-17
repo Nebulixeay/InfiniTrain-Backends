@@ -1,0 +1,27 @@
+{
+  "state": "COMPLETED_DIAGNOSTIC",
+  "time": "2026-11-17T15:45:02.163676+08:00",
+  "exit_code": 0,
+  "seconds": 711.285,
+  "reason": null,
+  "steps": [
+    [
+      1,
+      1,
+      5.356084
+    ]
+  ],
+  "phases": {
+    "finish model forward": 1,
+    "finish loss forward": 1,
+    "finish backward": 1
+  },
+  "first_step_reference": 5.356084,
+  "first_step_matches": true,
+  "identity_matches": true,
+  "profile_enter": 49,
+  "profile_done": 49,
+  "errors": [],
+  "raw_log_sha256": "bb427ce2022375f228de7ac3a2d9d9e0d46f3c8f787bae494b76981d6523192a",
+  "accuracy": "NOT_FORMAL_REFERENCE_ASSETS_UNKNOWN"
+}

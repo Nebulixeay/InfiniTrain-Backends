@@ -118,9 +118,10 @@ clang-tidy and IWYU setup, scope and manual usage (in Chinese).
 ## Cambricon MLU provider (work in progress)
 
 `backends/mlu` registers a `PrivateUse1` backend named `mlu` for Cambricon MLU
-devices. Small-shape FP32 operators and the device math functions are covered by
-regression tools; device GEMM, full GPT-2 10-step accuracy, BF16 and multi-card
-collectives are **not** done yet.
+devices. The current BF16 single-card configuration completed ten training steps,
+and an FP32 single-step regression matches the historical MLU first step. Operator
+regressions, full training logs and separately labelled historical ten-step results
+are available in the validation documentation below.
 
 ```bash
 cmake -S . -B build-mlu -G Ninja \

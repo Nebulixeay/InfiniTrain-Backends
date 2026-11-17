@@ -13,7 +13,7 @@
 namespace {
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 031：并行度（沿用 015/016/017 已证实、019/020/024 复核的同一机制）：本工具链下
+// 并行度（沿用 015/016/017 已证实、019/020/024 复核的同一机制）：本工具链下
 // dim.x*dim.y*dim.z 是本次启动占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数
 // （cnrtFuncTypeBlock 为 1），taskId ∈ [0, taskDim) 且各 task 唯一。CastKernel 是纯逐元素转换，
 // 既无跨元素归约也无跨元素写，因此按 idx = taskId、步长 taskDim 分片可保证每个元素恰被一个 task

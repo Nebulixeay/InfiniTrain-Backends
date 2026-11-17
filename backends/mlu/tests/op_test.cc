@@ -1,4 +1,4 @@
-// 逐算子对拍 + 比较器自检 + 探针用例（001-P2 v2 R01/R02/R05/R06）。
+// 逐算子对拍 + 比较器自检 + 探针用例。
 //
 // 判据（R01 修正后）：
 //   1) 先按显式期望分类：ref 为 NaN/±Inf 时要求 got 同类（NaN↔NaN、同号 Inf），
@@ -506,7 +506,7 @@ int RunProbeCase(const std::string &name) {
 }
 
 // ---------------------------------------------------------------------------
-// 007：关键反向设备用例（--backward-group a|b|all）
+// 关键反向设备用例（--backward-group a|b|all）
 //
 // 同步约定：所有 D2H 一律用既有阻塞 ToHost（MluGuardImpl::Memcpy：在当前 queue 上
 // cnrtMemcpyAsync + cnrtQueueSync，函数返回即表示已完成；它返回 void，内部用
@@ -582,7 +582,7 @@ bool BwdCompare(const char *name, const std::vector<double> &expect, const std::
 
 std::vector<double> ToDouble(const std::vector<float> &v) { return std::vector<double>(v.begin(), v.end()); }
 
-void TestEmbeddingBackward007() {
+void TestEmbeddingBackward() {
     const std::vector<int64_t> indices{0, 3, 3, 7, 0, 7, 7, 1};
     const int64_t tokens = static_cast<int64_t>(indices.size());
     const int64_t vocab = 32;
@@ -645,7 +645,7 @@ void TestEmbeddingBackward007() {
     }
 }
 
-void TestCrossEntropyBackward007(int64_t rows) {
+void TestCrossEntropyBackward(int64_t rows) {
     const int64_t classes = 32;
     std::vector<float> logits(static_cast<size_t>(rows * classes));
     for (size_t i = 0; i < logits.size(); ++i) {
@@ -701,7 +701,7 @@ void TestCrossEntropyBackward007(int64_t rows) {
     BwdCompare((std::string(tag) + " vs cpu").c_str(), ToDouble(cpu_host), mlu_host, 1e-5);
 }
 
-void TestAccumulateGrad007() {
+void TestAccumulateGrad() {
     const int64_t n = 64;
     std::vector<float> init(static_cast<size_t>(n));
     std::vector<float> grad(static_cast<size_t>(n));
@@ -774,7 +774,7 @@ void TestAccumulateGrad007() {
                 "AccumulateGrad roles finished", assertions, failures);
 }
 
-void TestSoftmaxBackward007() {
+void TestSoftmaxBackward() {
     const int64_t rows = 4;
     const int64_t cols = 64;
     const std::vector<int64_t> shape{rows, cols};
@@ -930,7 +930,7 @@ void TestSoftmaxBackward007() {
     }
 }
 
-void TestLayerNormBackward007() {
+void TestLayerNormBackward() {
     const std::vector<int64_t> input_dims{1, 2, 4};
     const std::vector<int64_t> param_dims{4};
     const std::vector<float> input_values{-1.5f, -0.5f, 0.5f, 1.5f, -3.0f, -1.0f, 1.0f, 3.0f};
@@ -1008,7 +1008,7 @@ void TestLayerNormBackward007() {
     BwdCompare("LayerNorm db vs upstream expected", expect_db, db_host, 1e-5);
 }
 
-void TestMatmulBackward007() {
+void TestMatmulBackward() {
     struct Case {
         const char *name;
         std::vector<int64_t> a_dims;
@@ -1102,7 +1102,7 @@ void TestMatmulBackward007() {
 } // namespace
 
 // ---------------------------------------------------------------------------
-// 028：BF16 公式级门禁（--bf16-gate）
+// BF16 公式级门禁（--bf16-gate）
 //
 // 目的：在一次 ≤10 s 的设备运行里判定「BF16 这条路能不能走」，四组最小覆盖：
 //   1) Cast 双向：fp32->bf16 位模式逐位对框架 host helper；bf16->fp32 精确回读；
@@ -1111,7 +1111,7 @@ void TestMatmulBackward007() {
 //   4) BF16 grad + FP32 param 的 AccumulateGrad：**允许显式拒绝，禁止静默错值**
 //      （静默错值/静默无操作都算 FAIL，runner 据 SILENT_* 标记分级 S2_GATE_FAILED_PRODUCT_ISSUE）。
 //
-// 真值来源约束（028/K-001 C5）：一律用框架 host helper
+// 真值来源约束：一律用框架 host helper
 // （infini_train::detail::FloatToBf16Bits / Bf16BitsToFloat）或 double 解析给出，
 // 不得用被测 Cast kernel 生成真值，避免循环论证。
 // ---------------------------------------------------------------------------
@@ -1130,7 +1130,7 @@ std::shared_ptr<Tensor> MakeTensorBf16(const std::vector<int64_t> &dims, const s
     return t;
 }
 
-// BF16 只能按 16 bit 读回；按 sizeof(float) 读会错位读取（028/K-001 §2 的缺口）。
+// BF16 只能按 16 bit 读回；按 sizeof(float) 读会错位读取。
 std::vector<uint16_t> ToHostBf16Bits(const std::shared_ptr<Tensor> &t) {
     std::vector<uint16_t> bits(t->NumElements());
     if (t->GetDevice().type() == kCPU) {
@@ -1142,9 +1142,7 @@ std::vector<uint16_t> ToHostBf16Bits(const std::shared_ptr<Tensor> &t) {
     return bits;
 }
 
-float RoundToBf16(float x) {
-    return infini_train::detail::Bf16BitsToFloat(infini_train::detail::FloatToBf16Bits(x));
-}
+float RoundToBf16(float x) { return infini_train::detail::Bf16BitsToFloat(infini_train::detail::FloatToBf16Bits(x)); }
 
 std::vector<float> RoundVec(const std::vector<float> &v) {
     std::vector<float> out(v.size());
@@ -1158,13 +1156,27 @@ bool TestCast() {
     std::vector<float> src(static_cast<size_t>(n));
     for (int64_t i = 0; i < n; ++i) {
         switch (static_cast<int>(i % 8)) {
-        case 0: src[i] = static_cast<float>(i) * 0.0137f; break;
-        case 1: src[i] = -static_cast<float>(i) * 0.0211f; break;
-        case 2: src[i] = 1.0e-38f * static_cast<float>(i + 1); break; // bf16 次正规附近
-        case 3: src[i] = 3.0e38f; break;                              // 大值
-        case 4: src[i] = 1.0f + static_cast<float>(i) / 256.0f; break; // 需要舍入
-        case 5: src[i] = -1.0f - static_cast<float>(i) / 512.0f; break;
-        default: src[i] = static_cast<float>(i % 5) - 2.0f; break;
+        case 0:
+            src[i] = static_cast<float>(i) * 0.0137f;
+            break;
+        case 1:
+            src[i] = -static_cast<float>(i) * 0.0211f;
+            break;
+        case 2:
+            src[i] = 1.0e-38f * static_cast<float>(i + 1);
+            break; // bf16 次正规附近
+        case 3:
+            src[i] = 3.0e38f;
+            break; // 大值
+        case 4:
+            src[i] = 1.0f + static_cast<float>(i) / 256.0f;
+            break; // 需要舍入
+        case 5:
+            src[i] = -1.0f - static_cast<float>(i) / 512.0f;
+            break;
+        default:
+            src[i] = static_cast<float>(i % 5) - 2.0f;
+            break;
         }
     }
     std::shared_ptr<Tensor> bf, back;
@@ -1177,9 +1189,13 @@ bool TestCast() {
             std::printf("%-46s FAIL null output\n", "bf16 gate cast fp32->bf16");
             return false;
         }
-        if (!BwdCheckTensor("bf16 gate cast fp32->bf16", bf, {n}, DataType::kBFLOAT16)) { return false; }
+        if (!BwdCheckTensor("bf16 gate cast fp32->bf16", bf, {n}, DataType::kBFLOAT16)) {
+            return false;
+        }
         back = kernel.Call<std::shared_ptr<Tensor>>(bf, DataType::kFLOAT32);
-        if (!BwdCheckTensor("bf16 gate cast bf16->fp32", back, {n}, DataType::kFLOAT32)) { return false; }
+        if (!BwdCheckTensor("bf16 gate cast bf16->fp32", back, {n}, DataType::kFLOAT32)) {
+            return false;
+        }
     }
     const std::vector<uint16_t> bits = ToHostBf16Bits(bf);
     std::vector<float> got_bits(static_cast<size_t>(n));
@@ -1192,8 +1208,8 @@ bool TestCast() {
     const std::vector<float> back_host = ToHost(back);
     std::vector<double> exp_back(static_cast<size_t>(n));
     for (int64_t i = 0; i < n; ++i) {
-        exp_back[i] = static_cast<double>(infini_train::detail::Bf16BitsToFloat(
-            infini_train::detail::FloatToBf16Bits(src[static_cast<size_t>(i)])));
+        exp_back[i] = static_cast<double>(
+            infini_train::detail::Bf16BitsToFloat(infini_train::detail::FloatToBf16Bits(src[static_cast<size_t>(i)])));
     }
     ok = BwdCompare("bf16 gate cast bf16->fp32 exact", exp_back, back_host, 0.0) && ok;
     LogBackwardCaseSync("bf16 gate cast");
@@ -1219,11 +1235,13 @@ bool TestLinear(int64_t rows, int64_t in_f, int64_t out_f) {
         auto gt = bf16_gate::MakeTensorBf16(g_dims, g, Mlu());
         auto y = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "LinearForward"}, xt, wt,
                                                                                     false, bt);
-        if (!BwdCheckTensor("bf16 gate linear fwd", y, {rows, out_f}, DataType::kBFLOAT16)) { return false; }
-        auto dx = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-            {kMLU, "LinearBackwardInput"}, wt, gt, false, in_f, out_f, x_dims);
-        auto dw = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-            {kMLU, "LinearBackwardWeight"}, xt, gt, false, in_f, out_f);
+        if (!BwdCheckTensor("bf16 gate linear fwd", y, {rows, out_f}, DataType::kBFLOAT16)) {
+            return false;
+        }
+        auto dx = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "LinearBackwardInput"}, wt,
+                                                                                     gt, false, in_f, out_f, x_dims);
+        auto dw = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "LinearBackwardWeight"}, xt,
+                                                                                     gt, false, in_f, out_f);
         auto db = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "LinearBackwardBias"}, gt,
                                                                                      out_f);
         if (!dx || !dw || !db) {
@@ -1232,7 +1250,9 @@ bool TestLinear(int64_t rows, int64_t in_f, int64_t out_f) {
         }
         if (!BwdCheckTensor("bf16 linear dx dtype", dx, x_dims, DataType::kFLOAT32)
             || !BwdCheckTensor("bf16 linear dw dtype", dw, w_dims, DataType::kFLOAT32)
-            || !BwdCheckTensor("bf16 linear db dtype", db, {out_f}, DataType::kFLOAT32)) { return false; }
+            || !BwdCheckTensor("bf16 linear db dtype", db, {out_f}, DataType::kFLOAT32)) {
+            return false;
+        }
         // Only the forward result uses BF16 storage.
         auto read_bf16 = [](const std::shared_ptr<Tensor> &t) {
             const auto bits = ToHostBf16Bits(t);
@@ -1252,9 +1272,10 @@ bool TestLinear(int64_t rows, int64_t in_f, int64_t out_f) {
             double acc = static_cast<double>(b[static_cast<size_t>(o)]);
             for (int64_t i = 0; i < in_f; ++i) {
                 acc += static_cast<double>(x[static_cast<size_t>(r * in_f + i)])
-                       * static_cast<double>(w[static_cast<size_t>(i * out_f + o)]);
+                     * static_cast<double>(w[static_cast<size_t>(i * out_f + o)]);
             }
-            exp_y[static_cast<size_t>(r * out_f + o)] = static_cast<double>(bf16_gate::RoundToBf16(static_cast<float>(acc)));
+            exp_y[static_cast<size_t>(r * out_f + o)]
+                = static_cast<double>(bf16_gate::RoundToBf16(static_cast<float>(acc)));
         }
     }
     bool ok = BwdCompare("bf16 gate linear fwd vs double(rounded)", exp_y, got_y, 1e-4);
@@ -1265,7 +1286,7 @@ bool TestLinear(int64_t rows, int64_t in_f, int64_t out_f) {
             double acc = 0.0;
             for (int64_t o = 0; o < out_f; ++o) {
                 acc += static_cast<double>(g[static_cast<size_t>(r * out_f + o)])
-                       * static_cast<double>(w[static_cast<size_t>(i * out_f + o)]);
+                     * static_cast<double>(w[static_cast<size_t>(i * out_f + o)]);
             }
             exp_dx[static_cast<size_t>(r * in_f + i)] = acc;
         }
@@ -1278,7 +1299,7 @@ bool TestLinear(int64_t rows, int64_t in_f, int64_t out_f) {
             double acc = 0.0;
             for (int64_t r = 0; r < rows; ++r) {
                 acc += static_cast<double>(x[static_cast<size_t>(r * in_f + i)])
-                       * static_cast<double>(g[static_cast<size_t>(r * out_f + o)]);
+                     * static_cast<double>(g[static_cast<size_t>(r * out_f + o)]);
             }
             exp_dw[static_cast<size_t>(i * out_f + o)] = acc;
         }
@@ -1296,7 +1317,6 @@ bool TestLinear(int64_t rows, int64_t in_f, int64_t out_f) {
     return ok;
 }
 
-
 // Independent double formulas cover mixed dtypes, both Linear layouts and batched Matmul.
 // Inputs use non-BF16-exact values to detect missing input rounding as well as output rounding.
 bool TestBackwardDtypes(DataType compute, DataType incoming, int64_t batches, bool transpose) {
@@ -1308,13 +1328,24 @@ bool TestBackwardDtypes(DataType compute, DataType incoming, int64_t batches, bo
         return dt == DataType::kBFLOAT16 ? MakeTensorBf16(dims, v, Mlu()) : MakeTensor(dims, v, Mlu());
     };
     std::vector<int64_t> ad{m, k}, bd{transpose ? n : k, transpose ? k : n}, gd{m, n};
-    if (batches > 1) { ad.insert(ad.begin(), batches); bd.insert(bd.begin(), batches); gd.insert(gd.begin(), batches); }
+    if (batches > 1) {
+        ad.insert(ad.begin(), batches);
+        bd.insert(bd.begin(), batches);
+        gd.insert(gd.begin(), batches);
+    }
     infini_train::core::DeviceGuard guard(Mlu());
     auto at = tensor(ad, a, compute), bt = tensor(bd, b, compute), gt = tensor(gd, g, incoming);
-    if (compute == DataType::kBFLOAT16) { a = RoundVec(a); b = RoundVec(b); }
-    if (incoming == DataType::kBFLOAT16) { g = RoundVec(g); }
+    if (compute == DataType::kBFLOAT16) {
+        a = RoundVec(a);
+        b = RoundVec(b);
+    }
+    if (incoming == DataType::kBFLOAT16) {
+        g = RoundVec(g);
+    }
     const auto bias_g = g;
-    if (compute == DataType::kBFLOAT16) { g = RoundVec(g); }
+    if (compute == DataType::kBFLOAT16) {
+        g = RoundVec(g);
+    }
     std::vector<double> da(a.size(), 0.0), db(b.size(), 0.0), bias(n, 0.0);
     for (int64_t batch = 0; batch < batches; ++batch) {
         for (int64_t row = 0; row < m; ++row) {
@@ -1331,41 +1362,45 @@ bool TestBackwardDtypes(DataType compute, DataType incoming, int64_t batches, bo
         }
     }
     std::printf("backward_dtype_case compute=%s incoming=%s batches=%lld transpose=%d\n",
-                compute == DataType::kBFLOAT16 ? "bf16" : "fp32",
-                incoming == DataType::kBFLOAT16 ? "bf16" : "fp32", static_cast<long long>(batches), transpose);
+                compute == DataType::kBFLOAT16 ? "bf16" : "fp32", incoming == DataType::kBFLOAT16 ? "bf16" : "fp32",
+                static_cast<long long>(batches), transpose);
     bool ok = true;
-    auto check = [&](const char *name, const std::shared_ptr<Tensor> &out,
-                     const std::vector<int64_t> &dims, const std::vector<double> &expected) {
+    auto check = [&](const char *name, const std::shared_ptr<Tensor> &out, const std::vector<int64_t> &dims,
+                     const std::vector<double> &expected) {
         const bool valid = BwdCheckTensor(name, out, dims, DataType::kFLOAT32);
         ok = valid && ok;
-        if (valid) { ok = BwdCompare(name, expected, ToHost(out), 1e-5) && ok; }
+        if (valid) {
+            ok = BwdCompare(name, expected, ToHost(out), 1e-5) && ok;
+        }
     };
     if (batches == 1) {
         check("LinearBackwardInput dtype+numeric",
-              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-                  {kMLU, "LinearBackwardInput"}, bt, gt, transpose, k, n, ad), ad, da);
+              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "LinearBackwardInput"}, bt, gt,
+                                                                                 transpose, k, n, ad),
+              ad, da);
         check("LinearBackwardWeight dtype+numeric",
-              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-                  {kMLU, "LinearBackwardWeight"}, at, gt, transpose, k, n), bd, db);
+              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "LinearBackwardWeight"}, at, gt,
+                                                                                 transpose, k, n),
+              bd, db);
         check("LinearBackwardBias dtype+numeric",
-              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-                  {kMLU, "LinearBackwardBias"}, gt, n), {n}, bias);
+              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "LinearBackwardBias"}, gt, n),
+              {n}, bias);
     }
     if (!transpose) {
         check("MatmulBackwardInput dtype+numeric",
-              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-                  {kMLU, "MatmulBackwardInput"}, bt, gt, ad), ad, da);
+              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "MatmulBackwardInput"}, bt, gt,
+                                                                                 ad),
+              ad, da);
         check("MatmulBackwardOther dtype+numeric",
-              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-                  {kMLU, "MatmulBackwardOther"}, at, gt, bd), bd, db);
+              infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "MatmulBackwardOther"}, at, gt,
+                                                                                 bd),
+              bd, db);
     }
     return ok;
 }
 
-
 // Independent analytic gradient with explicitly rounded stored inputs.
-bool TestSoftmaxBackwardDtypes(DataType saved, DataType incoming,
-                               const std::vector<int64_t> &dims, int64_t dim) {
+bool TestSoftmaxBackwardDtypes(DataType saved, DataType incoming, const std::vector<int64_t> &dims, int64_t dim) {
     const int64_t axis = dim < 0 ? dim + static_cast<int64_t>(dims.size()) : dim;
     int64_t outer = 1, inner = 1, width = dims[axis];
     for (int64_t i = 0; i < axis; ++i) { outer *= dims[i]; }
@@ -1388,10 +1423,14 @@ bool TestSoftmaxBackwardDtypes(DataType saved, DataType incoming,
             }
         }
     }
-    if (saved == DataType::kBFLOAT16) { y = RoundVec(y); }
-    if (incoming == DataType::kBFLOAT16) { g = RoundVec(g); }
-    const auto expected_dtype = saved == DataType::kBFLOAT16 && incoming == DataType::kBFLOAT16
-                                    ? DataType::kBFLOAT16 : DataType::kFLOAT32;
+    if (saved == DataType::kBFLOAT16) {
+        y = RoundVec(y);
+    }
+    if (incoming == DataType::kBFLOAT16) {
+        g = RoundVec(g);
+    }
+    const auto expected_dtype
+        = saved == DataType::kBFLOAT16 && incoming == DataType::kBFLOAT16 ? DataType::kBFLOAT16 : DataType::kFLOAT32;
     std::vector<double> expected(count);
     for (int64_t o = 0; o < outer; ++o) {
         for (int64_t i = 0; i < inner; ++i) {
@@ -1403,29 +1442,32 @@ bool TestSoftmaxBackwardDtypes(DataType saved, DataType incoming,
             for (int64_t a = 0; a < width; ++a) {
                 auto index = (o * width + a) * inner + i;
                 double value = static_cast<double>(y[index]) * (g[index] - dot);
-                expected[index] = expected_dtype == DataType::kBFLOAT16
-                                      ? RoundToBf16(static_cast<float>(value)) : value;
+                expected[index]
+                    = expected_dtype == DataType::kBFLOAT16 ? RoundToBf16(static_cast<float>(value)) : value;
             }
         }
     }
     infini_train::core::DeviceGuard guard(Mlu());
     auto yt = saved == DataType::kBFLOAT16 ? MakeTensorBf16(dims, y, Mlu()) : MakeTensor(dims, y, Mlu());
     auto gt = incoming == DataType::kBFLOAT16 ? MakeTensorBf16(dims, g, Mlu()) : MakeTensor(dims, g, Mlu());
-    auto out = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>(
-        {kMLU, "SoftmaxBackward"}, gt, yt, dim);
+    auto out
+        = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "SoftmaxBackward"}, gt, yt, dim);
     std::printf("softmax_backward saved=%s incoming=%s outer=%lld axis=%lld inner=%lld dim=%lld\n",
-                saved == DataType::kBFLOAT16 ? "bf16" : "fp32",
-                incoming == DataType::kBFLOAT16 ? "bf16" : "fp32",
-                static_cast<long long>(outer), static_cast<long long>(width),
-                static_cast<long long>(inner), static_cast<long long>(dim));
+                saved == DataType::kBFLOAT16 ? "bf16" : "fp32", incoming == DataType::kBFLOAT16 ? "bf16" : "fp32",
+                static_cast<long long>(outer), static_cast<long long>(width), static_cast<long long>(inner),
+                static_cast<long long>(dim));
     const bool valid = BwdCheckTensor("SoftmaxBackward dtype+shape", out, dims, expected_dtype);
-    if (!out || out->Dims() != dims) { return false; }
+    if (!out || out->Dims() != dims) {
+        return false;
+    }
     std::vector<float> got;
     if (out->Dtype() == DataType::kBFLOAT16) {
         for (auto bits : ToHostBf16Bits(out)) { got.push_back(infini_train::detail::Bf16BitsToFloat(bits)); }
     } else if (out->Dtype() == DataType::kFLOAT32) {
         got = ToHost(out);
-    } else { return false; }
+    } else {
+        return false;
+    }
     LogBackwardCaseSync("SoftmaxBackward mixed dtypes");
     return BwdCompare("SoftmaxBackward analytic", expected, got, 1e-5) && valid;
 }
@@ -1476,7 +1518,9 @@ bool TestPromote(int64_t n) {
         auto bt = MakeTensor({n}, b, Mlu());
         out = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, "AddForward"}, at, bt);
     }
-    if (!BwdCheckTensor("bf16 gate promote output dtype", out, {n}, DataType::kFLOAT32)) { return false; }
+    if (!BwdCheckTensor("bf16 gate promote output dtype", out, {n}, DataType::kFLOAT32)) {
+        return false;
+    }
     std::vector<double> expect(static_cast<size_t>(n));
     for (int64_t i = 0; i < n; ++i) {
         expect[i] = static_cast<double>(ar[static_cast<size_t>(i)]) + static_cast<double>(b[static_cast<size_t>(i)]);
@@ -1497,7 +1541,7 @@ int TestAccumulateGradMismatch() {
     std::vector<float> got;
     {
         infini_train::core::DeviceGuard guard(Mlu());
-        auto t = MakeTensor({n}, init, Mlu());              // FP32 target
+        auto t = MakeTensor({n}, init, Mlu());                // FP32 target
         auto g = bf16_gate::MakeTensorBf16({n}, grad, Mlu()); // BF16 grad（故意错配）
         auto kernel = infini_train::Dispatcher::Instance().GetKernel({kMLU, "AccumulateGrad"});
         kernel.Call<void>(g, -0.5f, t);
@@ -1506,17 +1550,20 @@ int TestAccumulateGradMismatch() {
     size_t exact = 0, changed = 0;
     for (int64_t i = 0; i < n; ++i) {
         const double expect = static_cast<double>(init[static_cast<size_t>(i)])
-                              - 0.5 * static_cast<double>(grad_r[static_cast<size_t>(i)]);
+                            - 0.5 * static_cast<double>(grad_r[static_cast<size_t>(i)]);
         const double tol = 1e-6 * std::max(1.0, std::fabs(expect));
-        if (std::isfinite(got[static_cast<size_t>(i)]) && std::fabs(static_cast<double>(got[static_cast<size_t>(i)]) - expect) <= tol) {
+        if (std::isfinite(got[static_cast<size_t>(i)])
+            && std::fabs(static_cast<double>(got[static_cast<size_t>(i)]) - expect) <= tol) {
             ++exact;
         }
-        if (got[static_cast<size_t>(i)] != init[static_cast<size_t>(i)]) { ++changed; }
+        if (got[static_cast<size_t>(i)] != init[static_cast<size_t>(i)]) {
+            ++changed;
+        }
     }
     LogBackwardCaseSync("bf16 gate accumulate_grad mixed dtype");
     if (exact == static_cast<size_t>(n)) {
-        std::printf("%-46s EXACT (%zu/%lld)  verdict=VALUE_OK\n", "bf16 gate accumgrad bf16grad+fp32param",
-                    exact, static_cast<long long>(n));
+        std::printf("%-46s EXACT (%zu/%lld)  verdict=VALUE_OK\n", "bf16 gate accumgrad bf16grad+fp32param", exact,
+                    static_cast<long long>(n));
         return 0;
     }
     if (changed == 0) {
@@ -1530,21 +1577,31 @@ int TestAccumulateGradMismatch() {
 }
 
 int RunBf16Gate() {
-    // 029：CHECK 会 abort，而 stdout 重定向到文件时是全缓冲 —— 不关缓冲就可能在 abort 时丢掉
+    // CHECK 会 abort，而 stdout 重定向到文件时是全缓冲 —— 不关缓冲就可能在 abort 时丢掉
     // 组 1–3 的 PASS 行，导致"三组仍通过"无法复核。这里显式关闭缓冲。
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("[bf16-gate] begin device=%d\n", g_device);
     int fails = 0;
-    if (!TestCast()) { ++fails; }
-    if (!TestLinear(3, 5, 7)) { ++fails; }
-    if (!TestLinear(8, 16, 16)) { ++fails; }
-    if (!TestPromote(64)) { ++fails; }
+    if (!TestCast()) {
+        ++fails;
+    }
+    if (!TestLinear(3, 5, 7)) {
+        ++fails;
+    }
+    if (!TestLinear(8, 16, 16)) {
+        ++fails;
+    }
+    if (!TestPromote(64)) {
+        ++fails;
+    }
     // 预声明标记：若产品按约定显式中止（Alt-A），进程会在下面这一行之后终止、不会打印 RESULT，
     // runner 凭"组 1–3 PASS + 本标记 + 固定 mismatch token + 无 RESULT"判定为"明确拒绝"。
     std::printf("[bf16-gate] mixed_dtype_probe begin expect=EXPLICIT_REFUSAL\n");
     std::fflush(stdout);
     const int mixed = TestAccumulateGradMismatch();
-    if (mixed != 0) { ++fails; }
+    if (mixed != 0) {
+        ++fails;
+    }
     std::printf("[bf16-gate] summary fails=%d mixed_dtype_verdict=%s\n", fails,
                 mixed == 0 ? "VALUE_OK" : (mixed == 1 ? "SILENT_NOOP" : "SILENT_CORRUPTION"));
     std::printf("RESULT: %s\n", (fails == 0 && !g_failed) ? "PASS" : "FAIL");
@@ -1554,7 +1611,7 @@ int RunBf16Gate() {
 } // namespace bf16_gate
 
 int main(int argc, char **argv) {
-    // 模式解析必须在 backend 注册/设备初始化之前（001-P2 v2 要求）
+    // 模式解析必须在 backend 注册/设备初始化之前
     std::string probe_case;
     std::string status_test;
     bool comparator_selftest = false;
@@ -1594,7 +1651,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    // 007：先区分“是否给了参数”与“取值”，空值同样拒绝（否则会被当成未传而跑默认套件）；
+    // 先区分“是否给了参数”与“取值”，空值同样拒绝（否则会被当成未传而跑默认套件）；
     // 取值与模式冲突也必须在 backend 注册/设备初始化之前拒绝。
     if (backward_group_given
         && (g_backward_group.empty()
@@ -1608,18 +1665,21 @@ int main(int argc, char **argv) {
             "--backward-group cannot be combined with --comparator-selftest/--debug-status-test/--probe-case\n");
         return 2;
     }
-    if (bf16_gate
-        && (backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) {
+    if (bf16_gate && (backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) {
         std::printf("--bf16-gate cannot be combined with --backward-group/--comparator-selftest/"
                     "--debug-status-test/--probe-case\n");
         return 2;
     }
 
-    if (linear_backward_gate && (bf16_gate || backward_group_given || comparator_selftest
-                                 || !status_test.empty() || !probe_case.empty())) { return 2; }
+    if (linear_backward_gate
+        && (bf16_gate || backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) {
+        return 2;
+    }
     if ((softmax_backward_gate || softmax_backward_probe)
         && ((softmax_backward_gate && softmax_backward_probe) || linear_backward_gate || bf16_gate
-            || backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) { return 2; }
+            || backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) {
+        return 2;
+    }
     if (comparator_selftest) {
         return RunComparatorSelftest();
     }
@@ -1654,33 +1714,35 @@ int main(int argc, char **argv) {
     if (softmax_backward_gate || softmax_backward_probe) {
         return bf16_gate::RunSoftmaxBackwardGate(softmax_backward_probe);
     }
-    if (linear_backward_gate) { return bf16_gate::RunLinearBackwardGate(); }
+    if (linear_backward_gate) {
+        return bf16_gate::RunLinearBackwardGate();
+    }
 
     if (!probe_case.empty()) {
         return RunProbeCase(probe_case);
     }
 
-    // 028：BF16 公式级门禁（独立开关，不影响默认套件与 --backward-group）
+    // BF16 公式级门禁（独立开关，不影响默认套件与 --backward-group）
     if (bf16_gate) {
         return bf16_gate::RunBf16Gate();
     }
 
-    // 007：关键反向 group（默认套件保持不动，只有显式传参才跑）
+    // 关键反向 group（默认套件保持不动，只有显式传参才跑）
     if (!g_backward_group.empty()) {
         const bool run_a = g_backward_group == "a" || g_backward_group == "all";
         const bool run_b = g_backward_group == "b" || g_backward_group == "all";
         std::printf("backward_group=%s sync=blocking_Memcpy_current_queue device=%d\n", g_backward_group.c_str(),
                     g_device);
         if (run_a) {
-            TestEmbeddingBackward007();
-            TestCrossEntropyBackward007(8);
-            TestCrossEntropyBackward007(1);
-            TestAccumulateGrad007();
+            TestEmbeddingBackward();
+            TestCrossEntropyBackward(8);
+            TestCrossEntropyBackward(1);
+            TestAccumulateGrad();
         }
         if (run_b) {
-            TestSoftmaxBackward007();
-            TestLayerNormBackward007();
-            TestMatmulBackward007();
+            TestSoftmaxBackward();
+            TestLayerNormBackward();
+            TestMatmulBackward();
         }
         std::printf("RESULT: %s\n", g_failed ? "FAIL" : "PASS");
         return g_failed ? 1 : 0;

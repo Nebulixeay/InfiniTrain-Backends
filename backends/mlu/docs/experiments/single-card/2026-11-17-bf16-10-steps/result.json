@@ -1,0 +1,72 @@
+{
+  "state": "COMPLETED_DIAGNOSTIC",
+  "time": "2026-11-17T15:33:00.005564+08:00",
+  "exit_code": 0,
+  "seconds": 9248.819,
+  "reason": null,
+  "steps": [
+    [
+      1,
+      10,
+      5.314695
+    ],
+    [
+      2,
+      10,
+      5.026468
+    ],
+    [
+      3,
+      10,
+      4.856012
+    ],
+    [
+      4,
+      10,
+      4.939342
+    ],
+    [
+      5,
+      10,
+      4.89868
+    ],
+    [
+      6,
+      10,
+      5.073312
+    ],
+    [
+      7,
+      10,
+      4.836881
+    ],
+    [
+      8,
+      10,
+      4.883745
+    ],
+    [
+      9,
+      10,
+      5.095389
+    ],
+    [
+      10,
+      10,
+      5.239595
+    ]
+  ],
+  "phases": {
+    "finish model forward": 10,
+    "finish loss forward": 10,
+    "finish backward": 10
+  },
+  "first_step_reference": 5.314695,
+  "first_step_matches": true,
+  "identity_matches": true,
+  "profile_enter": 490,
+  "profile_done": 490,
+  "errors": [],
+  "raw_log_sha256": "3ce5f50ccd4fd2b73559123d70df8810dcc2561a7ef01e20f539f3f704c9f983",
+  "accuracy": "NOT_FORMAL_REFERENCE_ASSETS_UNKNOWN"
+}

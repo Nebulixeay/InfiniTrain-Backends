@@ -1,0 +1,72 @@
+{
+  "experiment": "2026-11-17-bf16-10-steps",
+  "description": "Completed 10/10 with finite losses, ten forward/loss/backward phases, rc0, 9248.819 seconds. First two losses exactly match the preceding two-step regression. Reference comparison is diagnostic; see comparison metadata.",
+  "source_identity": "See original argv/identity metadata; historic runs may include uncommitted patches.",
+  "files": {
+    "argv.json": "60cfa9afb0df4895a6d2e19447416d1e67d28e47a5d2471d5620081f8291d66a",
+    "cnmon_after.txt": "72389a9c20c71f1de582f02ff08e68cf91baf5f3f762ef888bd263c9676e642c",
+    "cnmon_before.txt": "ba448cf55ea587e667fd04b1c9df482ddf3c92255e482413d628a4fdc6ed4b90",
+    "container_after.txt": "a365a766de7894ca8d28efbea456fd6066f7222e2c20986e72bed7fccc599715",
+    "identity_after.json": "dfe7b1f724f133101f61f8f829664f9702f51a0bd58d6e8df01b600d954da4ca",
+    "identity_before.json": "4ba809076dfabe961b3183b2d85abe927df92fef3f6dc6f46003615c5b0bd6a4",
+    "loss.csv": "48a693e798d597ddf514bf37fb5554df826ca89471d2252eb1e7c2e196e2350c",
+    "reference_comparison.json": "6bcd9caf2027c258888db3a7108c5079adb59bebd29d16f1e439031d56576da0",
+    "result.json": "72c1294957ab3d1419c2cb1fa68498ae1ced2fe964b85247d9958ea5fc75ef5f",
+    "seconds.txt": "ba6c7a35e832002e16b07a9e17164e2c3e7915700d5923b07b927acfc9fb6504",
+    "train.log": "3ce5f50ccd4fd2b73559123d70df8810dcc2561a7ef01e20f539f3f704c9f983",
+    "train.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  },
+  "steps": [
+    {
+      "step": 1,
+      "total": 10,
+      "loss": 5.314695
+    },
+    {
+      "step": 2,
+      "total": 10,
+      "loss": 5.026468
+    },
+    {
+      "step": 3,
+      "total": 10,
+      "loss": 4.856012
+    },
+    {
+      "step": 4,
+      "total": 10,
+      "loss": 4.939342
+    },
+    {
+      "step": 5,
+      "total": 10,
+      "loss": 4.89868
+    },
+    {
+      "step": 6,
+      "total": 10,
+      "loss": 5.073312
+    },
+    {
+      "step": 7,
+      "total": 10,
+      "loss": 4.836881
+    },
+    {
+      "step": 8,
+      "total": 10,
+      "loss": 4.883745
+    },
+    {
+      "step": 9,
+      "total": 10,
+      "loss": 5.095389
+    },
+    {
+      "step": 10,
+      "total": 10,
+      "loss": 5.239595
+    }
+  ],
+  "tested_code_commit": "3a788f3cfa6d729424d894490c8e189269e231b3"
+}

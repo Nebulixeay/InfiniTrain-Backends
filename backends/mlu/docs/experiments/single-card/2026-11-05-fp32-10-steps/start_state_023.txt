@@ -1,0 +1,52 @@
+=== 023 K-001/implement start state ===
+2026-11-05 13:20:41 +0800
+host_local=xyf
+--- repo ---
+branch=feat/mlu-provider-initial
+head=72f81e2753f025ebfdef722f7c3af1342e4674f2
+--- git status --porcelain ---
+ M backends/mlu/docs/validation.md
+ M backends/mlu/src/kernels/accumulate_grad.mlu
+ M backends/mlu/src/kernels/cross_entropy.mlu
+ M backends/mlu/src/kernels/elementwise.mlu
+ M backends/mlu/src/kernels/layernorm.mlu
+ M backends/mlu/src/kernels/linear.cc
+ M backends/mlu/src/kernels/softmax.mlu
+ M backends/mlu/src/kernels/transform.mlu
+ M backends/mlu/tests/op_test.cc
+?? backends/mlu/tools/
+--- git diff --numstat ---
+81	0	backends/mlu/docs/validation.md
+19	7	backends/mlu/src/kernels/accumulate_grad.mlu
+65	17	backends/mlu/src/kernels/cross_entropy.mlu
+50	23	backends/mlu/src/kernels/elementwise.mlu
+32	10	backends/mlu/src/kernels/layernorm.mlu
+82	0	backends/mlu/src/kernels/linear.cc
+25	13	backends/mlu/src/kernels/softmax.mlu
+24	12	backends/mlu/src/kernels/transform.mlu
+635	0	backends/mlu/tests/op_test.cc
+--- tools/ tree (untracked) ---
+f3433aa3af625346ea6661523f83498b498497d9b92660f6e2d23bc7ee27a07d  backends/mlu/tools/baseline_registry.json
+e9fcccc3c926ebbbb7103eee1e804bb4969961d2315ca61d8e5e03f2c3717e37  backends/mlu/tools/compare_loss_strict.py
+446b8730663ac52c0a400c70eef7bf4248e947015da5151ba84f975538ba56f6  backends/mlu/tools/references/LICENSE.InfiniTrain-Test
+f1a1c5b1467a379c6c5866797ea0b351cd4aa326df5cb7f27c5a5ce3c48555f0  backends/mlu/tools/references/a100_pytorch_training_5a0f27a5.log
+92a03bdbaab4235aebee24761ad5d689ebd9835c27aea77f5d45060910dd761c  backends/mlu/tools/references/derived_gpt2_1_fp32_a100_5a0f27a5.log
+b1597e634152b3e4f1122e9fbf0936df6612ed37a129c7b7a882da593a7af102  backends/mlu/tools/tests/test_compare_loss_strict.py
+--- dirty file sha256 ---
+e1c78ae3c83cf1be8e2d0f7599826500d000ce356aa0066273214217287eac18  backends/mlu/docs/validation.md
+80eba6280bd0d4dd796ff905868a90f238ba80b86355e385539946e69acc235f  backends/mlu/src/kernels/accumulate_grad.mlu
+6fb9ee73bd4c715ccba5281c4f0c7bdb8d6381309526245e87b04e74a79bf540  backends/mlu/src/kernels/cross_entropy.mlu
+f526a6611353c1502965234e5ad6892960637d1f3b568b1c8b0e60ee5d91d163  backends/mlu/src/kernels/elementwise.mlu
+7e385e80ee064ed47c689136fc55e7cc594842b8721b925830b7c748b1191f40  backends/mlu/src/kernels/layernorm.mlu
+be70a02ede4a43af98d0ca8280e3ce0776f468657046c8c4023540167b53b0a8  backends/mlu/src/kernels/linear.cc
+f22e07ea47117a9f7bb57c5278da119513fd12525c5099fd5b4fc58bf250e845  backends/mlu/src/kernels/softmax.mlu
+8ca89d72de09c72fecd3c8542f4de50001326a8f38254c3fb7634476a2001673  backends/mlu/src/kernels/transform.mlu
+31364597fdb82a560379be45d78eafb8145430a72cf3ea1a11cd5e432de285f8  backends/mlu/tests/op_test.cc
+85ea95acc739ef8334d62f845e812ba2a4ba19738e4c7123b320733c9efbb404  third_party/InfiniTrain/example/gpt2/main.cc
+--- git diff --check ---
+diff_check_rc=0
+--- worktree diff bytes/sha ---
+90895 /tmp/wt023.diff
+1c01bee3ab4d5c79517080a8b1f23f8100663a5d743411c13541d03e9ee08a27 */tmp/wt023.diff
+--- third_party/InfiniTrain head (framework) ---
+fw_head=c90338ceb2dc528816bf78c422f1f5483f2be1ae

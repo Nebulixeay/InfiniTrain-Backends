@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""compare_loss_strict.py 的纯 host 自检（002-P1 v2 §A 清单 + 006-P1 v2 C3）。
+"""compare_loss_strict.py 的纯 host 自检。
 
 只构造合成日志与合成登记，验证工具的通过/失败/拒绝/诊断行为；不产生任何训练结论。
 用法：python backends/mlu/tools/tests/test_compare_loss_strict.py
@@ -190,7 +190,7 @@ def main():
     ref = write_log(os.path.join(tmp, "ref.log"), STEPS)
     raw, derived = write_pair(tmp)
 
-    # ---- 原 002 轮 23 类 + C-005/C-006 回归（保留原用例名与预期） ----
+    # Regression coverage.
     act = write_log(os.path.join(tmp, "act_ok.log"), STEPS)
     base_meta = write_meta(os.path.join(tmp, "meta_ok.json"), act)
     unreg = ["--ref", ref, "--allow-unregistered-ref", "--dtype", "fp32"]
@@ -696,7 +696,7 @@ def main():
         forbid_text="RESULT: PASS",
     )
 
-    # ---- 006-P1 v2 C3：新增反例与可移植性 ----
+    # Regression coverage.
     disagree = {str(i): v for i, v in enumerate(STEPS, 1)}
     disagree["10"] = 5.999999
     case(
@@ -1171,7 +1171,7 @@ def main():
         cwd=elsewhere,
     )
 
-    # ---- C-004：Codex 独立 CLI 审计发现的 8 条真实入口反例 ----
+    # Regression coverage.
     case(
         "C4 invalid source_commit format rejected",
         3,

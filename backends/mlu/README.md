@@ -1,8 +1,8 @@
 # MLU backend (Cambricon)
 
 `backends/mlu` registers a `PrivateUse1` backend named `mlu` for Cambricon MLU devices. It is a
-**work-in-progress** integration: see [`docs/validation.md`](docs/validation.md) for what has
-actually been run and what has not.
+single-card integration with measured BF16 ten-step training and an FP32 single-step regression.
+See [`docs/validation.md`](docs/validation.md) for the design, commands and original evidence.
 
 ## Architecture in one paragraph
 
@@ -30,7 +30,7 @@ from `src/backend.cc` (`infini_train::backends::mlu::RegisterBackend`):
 | cncc | 5.7.6 (clang 11.1 based) |
 | Host compiler | GCC 13 (the framework needs C++20; GCC 11 lacks `<format>`) |
 | CMake / Ninja | CMake >= 3.28, Ninja |
-| InfiniTrain | the pinned submodule (`v0.7.0`) |
+| InfiniTrain | pinned submodule `e19a56d` (upstream LayerNorm autocast-policy fix) |
 
 `CNNL` is optional at configure time: if `cnnl.h` / `libcnnl` are not found the build prints a
 warning and disables BLAS handle support. **`INFINITRAIN_MLU_WITH_CNNL=ON` currently only
@@ -63,22 +63,27 @@ tools instead.
 ## Run
 
 ```bash
-GLOG_logtostderr=1 OMP_NUM_THREADS=64 ./build-mlu/gpt2 \
+GLOG_logtostderr=1 OMP_NUM_THREADS=192 MLU_LINEAR_PROFILE=1 ./build-mlu/gpt2 \
   --device mlu \
   --input_bin <DATA>/tiny_shakespeare_train.bin \
   --llmc_filepath <WEIGHTS>/gpt2_124M.bin \
-  --num_iteration 1
+  --dtype bfloat16 --batch_size 4 --sequence_length 64 \
+  --total_batch_size 256 --num_iteration 10 --overfit_single_batch true \
+  --val_loss_every 0 --sample_every 0
 ```
 
 `GLOG_logtostderr=1` is required to see the step logs: glog otherwise writes them to
 `/tmp/gpt2.*.INFO.*`.
 
-The command above is the configuration under validation - **not** a verified 10-step run.
+This configuration completed ten steps on 2026-11-17. The measured FP32 regression changes
+only `--dtype float32 --num_iteration 1`; historical FP32 ten-step runs are indexed separately.
 
 ## Regression tools
 
 ```bash
 ./build-mlu/op_test                              # operator vs CPU comparison (device test)
+./build-mlu/op_test --linear-backward-gate         # mixed-dtype Linear/Matmul backward
+./build-mlu/op_test --softmax-backward-gate        # mixed-dtype Softmax backward
 ./build-mlu/op_test --inject-finite               # negative check: the comparator must fail
 ./build-mlu/op_test --debug-status-test failure    # controlled fatal path (no device fault)
 cd backends/mlu/tests/math_selftest && bash build_and_run.sh  # device math functions (this cwd)
