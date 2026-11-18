@@ -1,19 +1,19 @@
-// 对应上游 src/kernels/cuda/embedding.cu 的 host 集成部分；设备 kernel 在 embedding.mlu。
-
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
 #include "glog/logging.h"
+#include <cnrt.h>
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/datatype.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/tensor.h"
 
 #include "kernels/mlu_kernel_api.h"
-#include "runtime/mlu_debug.h"
 #include "runtime/mlu_dispatch.h"
 #include "runtime/mlu_runtime_common.h"
 
@@ -45,8 +45,6 @@ std::shared_ptr<Tensor> EmbeddingForward(const std::shared_ptr<Tensor> &input, c
         [=]<typename T>() {
             EmbeddingForwardLaunch(input->DataPtr(), output->DataPtr(), weight->DataPtr(), batch_size * max_seqlen,
                                    embed_dim, vocab_size, MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "EmbeddingForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "EmbeddingForward");
         },
         "MLU EmbeddingForward");
     return output;
@@ -64,7 +62,7 @@ std::shared_ptr<Tensor> EmbeddingBackward(const std::shared_ptr<Tensor> &input, 
     CHECK_EQ(*grad_output->Dims().rbegin(), embedding_dim);
 
     auto grad_weight = std::make_shared<Tensor>(weight_dims, grad_output->Dtype(), grad_output->GetDevice());
-    // atomic 累加前必须清零
+    // Zero the gradient buffer before accumulation.
     grad_weight->Fill(0.0);
     const auto queue = CurrentQueue(input->GetDevice());
 
@@ -73,7 +71,6 @@ std::shared_ptr<Tensor> EmbeddingBackward(const std::shared_ptr<Tensor> &input, 
         [=]<typename T>() {
             EmbeddingBackwardLaunch(input->DataPtr(), grad_output->DataPtr(), grad_weight->DataPtr(),
                                     input->NumElements(), embedding_dim, vocab_size, MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "EmbeddingBackward");
         },
         "MLU EmbeddingBackward");
     return grad_weight;

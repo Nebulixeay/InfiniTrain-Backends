@@ -1,21 +1,21 @@
-// 对应上游 src/kernels/cuda/transform.cu 与 slice.cu 的 host 集成部分；设备 kernel 在 transform.mlu。
-// 只保留 GPT-2 训练路径需要的算子：Tril/Triu、Transpose、Mask（MaskedFill）、Slice。
-
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <ostream>
 #include <utility>
 #include <vector>
 
 #include "glog/logging.h"
+#include <cnrt.h>
 
 #include "infini_train/include/common/common.h"
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/tensor.h"
 
 #include "kernels/mlu_kernel_api.h"
-#include "runtime/mlu_debug.h"
 #include "runtime/mlu_dispatch.h"
 #include "runtime/mlu_runtime_common.h"
 
@@ -28,7 +28,6 @@ cnrtQueue_t CurrentQueue(const Device &device) {
         ->mlu_queue();
 }
 
-// 与 CUDA 版 transform.cu 的 IsLeadMaskShape / IsTailMaskShape 一致
 bool IsLeadMaskShape(const std::vector<int64_t> &in, const std::vector<int64_t> &mk) {
     if (mk.empty() || in.empty() || mk.size() > in.size()) {
         return false;
@@ -54,7 +53,7 @@ bool IsTailMaskShape(const std::vector<int64_t> &in, const std::vector<int64_t> 
     return true;
 }
 
-// 默认优先 tail（与 CUDA 版 DecideMaskMode 一致）
+// Prefer a trailing mask when both layouts match, consistent with CUDA.
 bool DecideMaskLead(const std::vector<int64_t> &in, const std::vector<int64_t> &mk) {
     const bool lead = IsLeadMaskShape(in, mk);
     const bool tail = IsTailMaskShape(in, mk);
@@ -84,7 +83,7 @@ std::vector<int64_t> SliceNewDims(const std::vector<int64_t> &starts, const std:
     std::vector<int64_t> new_dims;
     for (size_t i = 0; i < starts.size(); ++i) {
         CHECK_LE(starts[i], ends[i]);
-        CHECK_LE(0, steps[i]);
+        CHECK_LT(0, steps[i]) << "MLU Slice requires a positive step";
         new_dims.push_back((ends[i] - starts[i] + steps[i] - 1) / steps[i]);
     }
     return new_dims;
@@ -103,7 +102,6 @@ std::shared_ptr<Tensor> TrilForward(const std::shared_ptr<Tensor> &input, int64_
         [=]<typename T>() {
             TrilTriuLaunch(input->DataPtr(), output->DataPtr(), input->Dims()[0], input->Dims()[1], diagonal, false,
                            MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "TrilForward");
         },
         "MLU TrilForward");
     return output;
@@ -122,7 +120,6 @@ std::shared_ptr<Tensor> TriuForward(const std::shared_ptr<Tensor> &input, int64_
         [=]<typename T>() {
             TrilTriuLaunch(input->DataPtr(), output->DataPtr(), input->Dims()[0], input->Dims()[1], diagonal, true,
                            MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "TriuForward");
         },
         "MLU TriuForward");
     return output;
@@ -161,14 +158,12 @@ std::shared_ptr<Tensor> TransposeForward(const std::shared_ptr<Tensor> &input, i
         [=]<typename T>() {
             TransposeLaunch(input->DataPtr(), output->DataPtr(), meta, dim0, dim1,
                             static_cast<int64_t>(input->NumElements()), MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "TransposeForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "TransposeForward");
         },
         "MLU TransposeForward");
     return output;
 }
 
-// 转置是自逆的：反向即对 grad_output 做同一对维度的转置
+// Backward transposes the same pair of dimensions.
 std::shared_ptr<Tensor> TransposeBackward(const std::shared_ptr<Tensor> &grad_output, int64_t dim0, int64_t dim1) {
     return TransposeForward(grad_output, dim0, dim1);
 }
@@ -194,8 +189,6 @@ std::shared_ptr<Tensor> MaskForward(const std::shared_ptr<Tensor> &input, const 
         [=]<typename T>() {
             MaskForwardLaunch(input->DataPtr(), mask_casted->DataPtr(), output->DataPtr(), value, lead, mask_extent,
                               inner, num_elements, MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "MaskForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "MaskForward");
         },
         "MLU MaskForward");
     return output;
@@ -217,7 +210,6 @@ std::shared_ptr<Tensor> MaskBackward(const std::shared_ptr<Tensor> &grad_output,
         [=]<typename T>() {
             MaskBackwardLaunch(grad_output->DataPtr(), mask_casted->DataPtr(), grad_input->DataPtr(), lead, mask_extent,
                                inner, num_elements, MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "MaskBackward");
         },
         "MLU MaskBackward");
     return grad_input;
@@ -242,7 +234,6 @@ std::shared_ptr<Tensor> SliceForward(const std::shared_ptr<Tensor> &input, const
         [=]<typename T>() {
             SliceForwardLaunch(input->DataPtr(), output->DataPtr(), meta, static_cast<int64_t>(output->NumElements()),
                                MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "SliceForward");
         },
         "MLU SliceForward");
     return output;
@@ -258,7 +249,7 @@ std::shared_ptr<Tensor> SliceBackward(const std::shared_ptr<Tensor> &grad_output
 
     const auto new_dims = SliceNewDims(starts, ends, steps);
     auto grad_input = std::make_shared<Tensor>(dims, grad_output->Dtype(), grad_output->GetDevice());
-    // 非切片区域必须保持 0
+    // Keep the region outside the slice zero.
     grad_input->Fill(0.0);
     const auto meta = MakeSliceMeta(dims, new_dims, starts, steps);
 
@@ -268,7 +259,6 @@ std::shared_ptr<Tensor> SliceBackward(const std::shared_ptr<Tensor> &grad_output
         [=]<typename T>() {
             SliceBackwardLaunch(grad_output->DataPtr(), grad_input->DataPtr(), meta,
                                 static_cast<int64_t>(grad_output->NumElements()), MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "SliceBackward");
         },
         "MLU SliceBackward");
     return grad_input;

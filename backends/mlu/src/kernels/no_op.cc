@@ -1,11 +1,7 @@
-// 对应上游 src/kernels/cpu/no_op.cc（NoOp 不涉及设备计算，纯 view 操作，
-// 各后端实现相同）。
-
-#include <stdint.h>
-
 #include <functional>
 #include <memory>
 #include <numeric>
+#include <stdint.h>
 #include <vector>
 
 #include "glog/logging.h"

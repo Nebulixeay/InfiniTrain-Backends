@@ -1,7 +1,4 @@
-// 纯 BANG C kernel + 启动器（cncc 编译，只允许 C++11 级别语法，不含框架头）。
-// 框架集成见同目录 accumulate_grad.cc。
-// 语义对应上游 src/kernels/cuda/accumulate_grad.cu；16 位浮点一律经 float
-// 中转计算（FP32 中间精度），与框架"归约/累加用 FP32"的约定一致。
+// BANG C device kernels; host/framework integration is in the matching .cc file.
 
 #include <stdint.h>
 
@@ -12,14 +9,8 @@
 namespace {
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 并行度：本工具链下 dim.x*dim.y*dim.z 是本次
-// 启动占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，
-// cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。两个 kernel 的循环体只读写同一 idx 上的
-// grad/tensor（以及 Adam 的 m/v/param），既没有跨元素归约也没有跨元素写，因此按 i = taskId、步长
-// taskDim 分片可保证每个元素恰被一个 task 读写一次，结果与单任务版逐位相同，无需跨 task 同步。
-// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，用
-// taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd 与
-// 1_Performance/matmul 的 taskId/taskDim 切分范式。
+// Partition independent elements or rows using taskId and taskDim.
+// Each output has one writer; reductions stay within a task in their original order.
 
 template <typename T>
 __mlu_global__ void AccumulateGradKernel(const T *grad_ptr, float rate, T *tensor_ptr, int64_t num_elements) {
@@ -44,17 +35,12 @@ __mlu_global__ void AdamAccumulateGradKernel(const T *grad_data, T *param_data, 
 
         const float m_hat = m / bias_correction_m;
         const float v_hat = v / bias_correction_v;
-        // CUDA 版用 __frcp_rn(__fsqrt_rn(v) + eps)（单精度倒数）；这里 1.0f/(sqrtf+eps)
-        // 同为 IEEE 单精度除法，对 FP32 场景逐位一致
         param_data[idx]
             = static_cast<T>(static_cast<float>(param_data[idx]) - learning_rate * m_hat / (sqrtf(v_hat) + eps));
     }
 }
 
-// 启动配置：cnrtFuncTypeBlock 下一个 core 执行一个 task；dim.x*dim.y*dim.z 为本次启动的 task 数，
-// 内核按 taskId/taskDim 分片，故每个元素只被一个 task 读写。
-// {4,8,1} = 32 个 task，属用户授权的未证候选试验（厂商示例只到 global_var 的 Block +
-// dim={4,4,1}=16，无更大 Block 维度的示例或文档支持）；taskDim 是否真的变为 32 未直接观测。
+// Block launch; taskId/taskDim partition the independent work.
 const cnrtDim3_t kDim = {4, 8, 1};
 
 template <typename T>
@@ -84,7 +70,7 @@ void AdamAccumulateGradTyped(const void *grad, void *param, void *m, void *v, fl
         launch_fn<float>(__VA_ARGS__);                                                                                 \
         return;                                                                                                        \
     default:                                                                                                           \
-        /* 只 dispatch 浮点类型；FP64 已由 host 侧排除 */                                                   \
+        /* FP64 is excluded by host dispatch. */                                                                       \
         return;                                                                                                        \
     }
 } // namespace

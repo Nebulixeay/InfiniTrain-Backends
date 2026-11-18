@@ -1,10 +1,15 @@
-// 对应上游 src/kernels/cuda/accumulate_grad.cu 的 host 集成部分；设备 kernel 在 accumulate_grad.mlu。
-
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <ostream>
+#include <string>
+#include <unordered_map>
+
+#include "glog/logging.h"
+#include <cnrt.h>
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/datatype.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
@@ -17,10 +22,8 @@
 namespace infini_train::kernels::mlu {
 
 void AccumulateGrad(const std::shared_ptr<Tensor> &gradient, float rate, const std::shared_ptr<Tensor> &tensor) {
-    // grad 与 param 必须同 dtype。设备 kernel 以 gradient->Dtype() 选定 T，并把 tensor 指针按同一 T
-    // 解释；一旦不一致（典型来源是 autocast 产生的 bf16 grad + fp32 param），就会按错误的元素宽度写入，
-    // 产生静默错值。这里在任何取 queue / 入队之前显式中止，
-    // 与 CUDA/CPU 侧"grad 与 param 同 dtype"的既有不变量对齐。FP32 训练两侧同 dtype，恒不触发。
+    // Require identical gradient/parameter dtypes before enqueueing: the kernel accesses both through the gradient
+    // type.
     CHECK(gradient->Dtype() == tensor->Dtype())
         << "MLU AccumulateGrad dtype mismatch: grad=" << kDataTypeToDesc.at(gradient->Dtype())
         << " param=" << kDataTypeToDesc.at(tensor->Dtype()) << " (refusing to reinterpret memory)";
@@ -34,7 +37,6 @@ void AccumulateGrad(const std::shared_ptr<Tensor> &gradient, float rate, const s
         [=]<typename T>() {
             AccumulateGradLaunch(gradient->DataPtr(), rate, tensor->DataPtr(), MluTypeTag<T>(),
                                  static_cast<int64_t>(gradient->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "AccumulateGrad");
         },
         "MLU AccumulateGrad");
 }
@@ -42,7 +44,7 @@ void AccumulateGrad(const std::shared_ptr<Tensor> &gradient, float rate, const s
 void AdamAccumulateGrad(const std::shared_ptr<Tensor> &grad, const std::shared_ptr<Tensor> &param,
                         const std::shared_ptr<Tensor> &m, const std::shared_ptr<Tensor> &v, float learning_rate,
                         float beta1, float beta2, float eps, int64_t t) {
-    // Adam 的 temp 状态 m/v 与 param 同样按 grad 的 T 写入，四者必须同 dtype，否则同样会静默错值。
+    // Adam state and parameter buffers must match the gradient dtype used by the kernel.
     CHECK(grad->Dtype() == param->Dtype() && grad->Dtype() == m->Dtype() && grad->Dtype() == v->Dtype())
         << "MLU AdamAccumulateGrad dtype mismatch: grad=" << kDataTypeToDesc.at(grad->Dtype())
         << " param=" << kDataTypeToDesc.at(param->Dtype()) << " m=" << kDataTypeToDesc.at(m->Dtype())
@@ -61,7 +63,6 @@ void AdamAccumulateGrad(const std::shared_ptr<Tensor> &grad, const std::shared_p
             AdamAccumulateGradLaunch(grad->DataPtr(), param->DataPtr(), m->DataPtr(), v->DataPtr(), learning_rate,
                                      beta1, beta2, eps, bias_correction_m, bias_correction_v, MluTypeTag<T>(),
                                      static_cast<int64_t>(grad->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "AdamAccumulateGrad");
         },
         "MLU AdamAccumulateGrad");
 }

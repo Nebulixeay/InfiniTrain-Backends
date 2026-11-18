@@ -1,19 +1,20 @@
-// 对应上游 src/kernels/cuda/layernorm.cu 的 host 集成部分；设备 kernel 在 layernorm.mlu。
-
 #include <cstdint>
 #include <memory>
+#include <ostream>
 #include <tuple>
+#include <vector>
 
 #include "glog/logging.h"
+#include <cnrt.h>
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/datatype.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/tensor.h"
 
 #include "kernels/mlu_kernel_api.h"
-#include "runtime/mlu_debug.h"
 #include "runtime/mlu_dispatch.h"
 #include "runtime/mlu_runtime_common.h"
 
@@ -38,6 +39,7 @@ LayerNormForward(const std::shared_ptr<Tensor> &input, const std::shared_ptr<Ten
     const int64_t embed_dim = input->Dims()[2];
 
     auto dtype = input->Dtype();
+    CHECK(dtype == weight->Dtype() && dtype == bias->Dtype()) << "MLU LayerNormForward dtype mismatch";
     auto output = std::make_shared<Tensor>(input->Dims(), dtype, input->GetDevice());
     auto mean = std::make_shared<Tensor>(std::vector<int64_t>{batch_size, max_seqlen}, DataType::kFLOAT32,
                                          input->GetDevice());
@@ -51,8 +53,6 @@ LayerNormForward(const std::shared_ptr<Tensor> &input, const std::shared_ptr<Ten
             LayerNormForwardLaunch(input->DataPtr(), weight->DataPtr(), bias->DataPtr(),
                                    static_cast<float *>(mean->DataPtr()), static_cast<float *>(rstd->DataPtr()),
                                    output->DataPtr(), eps, batch_size * max_seqlen, embed_dim, MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "LayerNormForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "LayerNormForward");
         },
         "MLU LayerNormForward");
     return {output, mean, rstd};
@@ -87,7 +87,6 @@ LayerNormBackward(const std::shared_ptr<Tensor> &input, const std::shared_ptr<Te
                 input->DataPtr(), grad_output->DataPtr(), static_cast<const float *>(mean->DataPtr()),
                 static_cast<const float *>(rstd->DataPtr()), weight->DataPtr(), grad_input->DataPtr(),
                 grad_weight->DataPtr(), grad_bias->DataPtr(), num_tokens, embed_dim, MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "LayerNormBackward");
         },
         "MLU LayerNormBackward");
     return {grad_input, grad_weight, grad_bias};

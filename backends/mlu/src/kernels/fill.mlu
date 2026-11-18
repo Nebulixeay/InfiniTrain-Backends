@@ -1,5 +1,4 @@
-// 纯 BANG C kernel + 启动器（cncc 编译，只允许 C++11 级别语法，不含框架头）。
-// 框架集成见同目录 fill.cc。
+// BANG C device kernels; host/framework integration is in the matching .cc file.
 
 #include <stdint.h>
 #include <string.h>
@@ -9,7 +8,6 @@
 #include "kernels/mlu_kernel_api.h"
 
 namespace {
-// TODO(perf): 任务数先取保守值（4 个 union1 任务 = 16 核），性能是任务三的事
 constexpr uint32_t kDefaultTaskCount = 4;
 
 template <typename T> __mlu_global__ void FillKernel(T *data, T value, int64_t size) {
@@ -63,7 +61,6 @@ void FillLaunch(void *data, uint64_t value_bits, MluScalarType type, int64_t num
         FillTyped<float>(data, value_bits, num_elements, queue);
         break;
     default:
-        // MLU 设备不支持 FP64；bool 与 CUDA 后端一致不 dispatch（见 fill.cc）
         break;
     }
 }

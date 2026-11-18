@@ -1,18 +1,12 @@
-// Linear / Matmul 的 MLU host 侧集成。
-//
-// NOTE(MLU-FALLBACK) 设备 GEMM 尚未接入：本文件目前用 D2H -> host 分块 GEMM -> H2D
-// 作为临时实现，只为先把 FP32 数值链路跑通；正式验收要求替换为设备端 GEMM
-// （例如 CNNL，且 handle 必须绑定到当前 stream）。
-// 精度：host 侧为 float 顺序累加（k 递增），与分块累加的差异仅来自舍入。
+// Linear/Matmul use a host GEMM fallback with D2H/H2D copies.
+// Accumulation is FP32 in increasing k order; device GEMM remains future work.
 
-#include <algorithm>
-#include <chrono>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <functional>
 #include <memory>
 #include <numeric>
-#include <sstream>
+#include <ostream>
 #include <vector>
 
 #include "glog/logging.h"
@@ -23,18 +17,13 @@
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/tensor.h"
 
-#include "runtime/mlu_debug.h"
-#include "runtime/mlu_dispatch.h"
-#include "runtime/mlu_runtime_common.h"
-
 namespace infini_train::kernels::mlu {
 namespace {
 
-// C(m,n) = op(A)(m,k) * op(B)(k,n)  + beta * C(m,n)
-// 行主序；A 的 lda 为行跨度，B 的 ldb 为行跨度。alpha 固定为 1（本项目用不到）。
+// Row-major storage; lda/ldb/ldc are row strides and alpha is one.
 void HostGemm(bool trans_a, bool trans_b, int64_t m, int64_t n, int64_t k, const float *a, int64_t lda, const float *b,
               int64_t ldb, float beta, float *c, int64_t ldc) {
-    // i-k-j 序：内层沿 n 连续访问 B、C，缓存友好；k 递增累加保证顺序确定性
+    // Traverse i-k-j for contiguous inner-loop access and deterministic accumulation order.
 #pragma omp parallel for schedule(static)
     for (int64_t i = 0; i < m; ++i) {
         float *c_row = c + i * ldc;
@@ -51,7 +40,7 @@ void HostGemm(bool trans_a, bool trans_b, int64_t m, int64_t n, int64_t k, const
     }
 }
 
-// 设备张量 <-> host float 缓冲（16 位浮点经 float 中转）
+// Convert device tensors to host float buffers, including 16-bit floating-point storage.
 std::vector<float> ToHostFloat(const std::shared_ptr<Tensor> &t, Device::DeviceType type) {
     const size_t num = t->NumElements();
     std::vector<float> host(num);
@@ -105,35 +94,6 @@ int64_t NumElementsOf(const std::vector<int64_t> &dims) {
     return std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<int64_t>());
 }
 
-// NOTE 分段计时临时探针：仅 MLU_LINEAR_PROFILE=1 时生效，默认零日志、零行为变化。
-// 开关语义沿用 mlu_debug.h 的约定：unset / "0" / "false" 关闭，其它值开启。
-bool LinearProfileEnabled() {
-    static const bool enabled = [] {
-        const char *value = std::getenv("MLU_LINEAR_PROFILE");
-        if (value == nullptr || value[0] == '\0') {
-            return false;
-        }
-        return std::strcmp(value, "0") != 0 && std::strcmp(value, "false") != 0;
-    }();
-    return enabled;
-}
-
-double MsBetween(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
-    return std::chrono::duration<double, std::milli>(end - start).count();
-}
-
-int64_t NextLinearProfileCallId() {
-    static int64_t next_call_id = 0;
-    return next_call_id++;
-}
-
-std::string LinearProfileTag(int64_t call_id, int64_t rows, int64_t in_features, int64_t out_features, bool has_bias) {
-    std::ostringstream oss;
-    oss << "[MLU_LINEAR_PROFILE] call=" << call_id << " rows=" << rows << " in_features=" << in_features
-        << " out_features=" << out_features << " has_bias=" << (has_bias ? 1 : 0);
-    return oss.str();
-}
-
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -161,76 +121,24 @@ std::shared_ptr<Tensor> LinearForward(const std::shared_ptr<Tensor> &input, cons
     auto output = std::make_shared<Tensor>(output_dims, input->Dtype(), input->GetDevice());
 
     const int64_t rows = NumElementsOf(input_dims) / in_features;
-    const bool profile = LinearProfileEnabled();
-    const int64_t profile_call = profile ? NextLinearProfileCallId() : -1;
-    std::string profile_tag;
-    std::chrono::steady_clock::time_point t_enter;
-    double tohost_input_weight_ms = 0.0;
-    double gemm_ms = 0.0;
-    double bias_tohost_ms = 0.0;
-    double bias_add_ms = 0.0;
-    double h2d_ms = 0.0;
-    if (profile) {
-        profile_tag = LinearProfileTag(profile_call, rows, in_features, out_features, bias != nullptr);
-        t_enter = std::chrono::steady_clock::now();
-        LOG(INFO) << profile_tag << " phase=enter";
-    }
-
     auto in_host = ToHostFloat(input, input->GetDevice().type());
     auto w_host = ToHostFloat(weight, weight->GetDevice().type());
     std::vector<float> out_host(static_cast<size_t>(rows * out_features));
-    if (profile) {
-        const auto t_after = std::chrono::steady_clock::now();
-        tohost_input_weight_ms = MsBetween(t_enter, t_after);
-        LOG(INFO) << profile_tag << " phase=after_tohost_input_weight"
-                  << " tohost_input_weight_ms=" << tohost_input_weight_ms;
-    }
 
-    // output = input(rows,in) * weight^T(in,out)（transpose=true 时 weight 为 (out,in)）
+    // output = input * weight^T when transpose is true and weight is [out, in].
     HostGemm(false, transpose, rows, out_features, in_features, in_host.data(), in_features, w_host.data(),
              transpose ? in_features : out_features, 0.0f, out_host.data(), out_features);
-    if (profile) {
-        const auto t_after = std::chrono::steady_clock::now();
-        gemm_ms = MsBetween(t_enter, t_after) - tohost_input_weight_ms;
-        LOG(INFO) << profile_tag << " phase=after_gemm"
-                  << " gemm_ms=" << gemm_ms;
-    }
 
     if (bias) {
-        const auto t_bias_enter = profile ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         auto b_host = ToHostFloat(bias, bias->GetDevice().type());
-        if (profile) {
-            const auto t_after = std::chrono::steady_clock::now();
-            bias_tohost_ms = MsBetween(t_bias_enter, t_after);
-            LOG(INFO) << profile_tag << " phase=after_bias_tohost"
-                      << " bias_tohost_ms=" << bias_tohost_ms;
-        }
-        const auto t_bias_add = profile ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+
         for (int64_t r = 0; r < rows; ++r) {
             for (int64_t j = 0; j < out_features; ++j) { out_host[r * out_features + j] += b_host[j]; }
         }
-        if (profile) {
-            const auto t_after = std::chrono::steady_clock::now();
-            bias_add_ms = MsBetween(t_bias_add, t_after);
-            LOG(INFO) << profile_tag << " phase=after_bias_add"
-                      << " bias_add_ms=" << bias_add_ms;
-        }
     }
 
-    const auto t_h2d_enter = profile ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     FromHostFloat(out_host, output, output->GetDevice().type());
-    if (profile) {
-        const auto t_done = std::chrono::steady_clock::now();
-        h2d_ms = MsBetween(t_h2d_enter, t_done);
-        LOG(INFO) << profile_tag << " phase=done"
-                  << " tohost_ms=" << (tohost_input_weight_ms + bias_tohost_ms)
-                  << " gemm_bias_ms=" << (gemm_ms + bias_add_ms) << " h2d_ms=" << h2d_ms
-                  << " total_ms=" << MsBetween(t_enter, t_done);
-    }
-    if (output->Dtype() == DataType::kFLOAT32) {
-        ::infini_train::core::mlu::DebugCheckTensor(output->DataPtr(), output->NumElements(),
-                                                    static_cast<int>(output->Dtype()), "LinearForward");
-    }
+
     return output;
 }
 
@@ -252,11 +160,11 @@ std::shared_ptr<Tensor> LinearBackwardInput(const std::shared_ptr<Tensor> &weigh
     std::vector<float> gi_host(static_cast<size_t>(rows * in_features));
 
     if (transpose) {
-        // weight 为 [out, in]：grad_input(rows,in) = grad_output(rows,out) * weight(out,in)
+        // grad_input = grad_output * weight for weight shaped [out, in].
         HostGemm(false, false, rows, in_features, out_features, g_host.data(), out_features, w_host.data(), in_features,
                  0.0f, gi_host.data(), in_features);
     } else {
-        // weight 为 [in, out]：grad_input(rows,in) = grad_output(rows,out) * weight(in,out)^T
+        // grad_input = grad_output * weight^T for weight shaped [in, out].
         HostGemm(false, true, rows, in_features, out_features, g_host.data(), out_features, w_host.data(), out_features,
                  0.0f, gi_host.data(), in_features);
     }
@@ -313,9 +221,7 @@ std::shared_ptr<Tensor> LinearBackwardBias(const std::shared_ptr<Tensor> &grad_o
     return grad_bias;
 }
 
-// -----------------------------------------------------------------------------
-// Matmul（批量，最后两维为矩阵，batch 维必须一致）
-// -----------------------------------------------------------------------------
+// Batched Matmul: the last two dimensions are matrices and batch dimensions must match.
 
 std::shared_ptr<Tensor> MatmulForward(const std::shared_ptr<Tensor> &input, const std::shared_ptr<Tensor> &other) {
     const auto &input_dims = input->Dims();

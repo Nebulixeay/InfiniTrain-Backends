@@ -1,27 +1,22 @@
-// 对应上游 src/kernels/cuda/elementwise.cu 的 host 集成部分；设备 kernel 在 elementwise.mlu。
-// 只保留 GPT-2 训练路径需要的算子（一元 Neg/Reciprocal/Sin/Cos/Tanh/Pow/Rsqrt/Exp/Log/Sigmoid、
-// 二元 Add/Sub/Mul/Div 及 Add/Mul 标量变体、Equals/EqualsScalar）。
-
 #include <algorithm>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <memory>
+#include <ostream>
 #include <utility>
 #include <vector>
 
 #include "glog/logging.h"
+#include <cnrt.h>
 
 #include "infini_train/include/common/common.h"
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/datatype.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
-#include "infini_train/include/scalar.h"
 #include "infini_train/include/tensor.h"
 
 #include "kernels/mlu_kernel_api.h"
-#include "runtime/mlu_debug.h"
 #include "runtime/mlu_dispatch.h"
 #include "runtime/mlu_runtime_common.h"
 
@@ -34,7 +29,7 @@ cnrtQueue_t CurrentQueue(const Device &device) {
         ->mlu_queue();
 }
 
-// 对应 CUDA 版 MakeBroadcastMeta：a/b 的 shape 右对齐到 out 的 ndim
+// Right-align both input shapes to the output rank, matching CUDA broadcast metadata.
 MluBroadcastMeta MakeBroadcastMeta(const std::vector<int64_t> &a_dims, const std::vector<int64_t> &b_dims,
                                    const std::vector<int64_t> &out_dims) {
     MluBroadcastMeta m{};
@@ -62,7 +57,6 @@ MluBroadcastMeta MakeBroadcastMeta(const std::vector<int64_t> &a_dims, const std
 
 bool ShapesEqual(const std::vector<int64_t> &a, const std::vector<int64_t> &b) { return a == b; }
 
-// dtype 提升（与 CUDA 版一致：按 PromoteDataTypes 结果 Cast）
 std::shared_ptr<Tensor> Promote(const std::shared_ptr<Tensor> &t, DataType promoted) {
     return t->Dtype() == promoted ? t : std::make_shared<Tensor>(t->To(promoted));
 }
@@ -75,14 +69,12 @@ std::shared_ptr<Tensor> UnaryForwardImpl(const std::shared_ptr<Tensor> &input, M
         [=]<typename T>() {
             UnaryForwardLaunch(output->DataPtr(), input->DataPtr(), op, MluTypeTag<T>(),
                                static_cast<int64_t>(input->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "UnaryForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "UnaryForward");
         },
         "MLU UnaryForward");
     return output;
 }
 
-// aux 语义见 mlu_kernel_api.h UnaryBackwardLaunch 注释
+// aux is the forward output for tanh/exp/sigmoid and the forward input otherwise.
 std::shared_ptr<Tensor> UnaryBackwardImpl(const std::shared_ptr<Tensor> &grad_output,
                                           const std::shared_ptr<Tensor> &aux, MluUnaryOp op) {
     const auto dtype = grad_output->Dtype();
@@ -97,7 +89,6 @@ std::shared_ptr<Tensor> UnaryBackwardImpl(const std::shared_ptr<Tensor> &grad_ou
         [=]<typename T>() {
             UnaryBackwardLaunch(grad_in->DataPtr(), g->DataPtr(), x ? x->DataPtr() : g->DataPtr(), op, MluTypeTag<T>(),
                                 static_cast<int64_t>(g->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "UnaryBackward");
         },
         "MLU UnaryBackward");
     return grad_in;
@@ -108,7 +99,6 @@ std::shared_ptr<Tensor> BinaryForwardImpl(const std::shared_ptr<Tensor> &a, cons
     const DataType promoted = PromoteDataTypes(a->Dtype(), b->Dtype());
     auto ap = Promote(a, promoted);
     auto bp = Promote(b, promoted);
-    // 与 CUDA 版一致：只假设 b -> a 单向广播
     CHECK(a->NumElements() >= b->NumElements() && a->NumElements() % b->NumElements() == 0);
 
     auto output = std::make_shared<Tensor>(a->Dims(), promoted, a->GetDevice());
@@ -119,8 +109,6 @@ std::shared_ptr<Tensor> BinaryForwardImpl(const std::shared_ptr<Tensor> &a, cons
         [=]<typename T>() {
             BinaryForwardLaunch(output->DataPtr(), ap->DataPtr(), bp->DataPtr(), op, MluTypeTag<T>(), meta,
                                 static_cast<int64_t>(output->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "BinaryForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "BinaryForward");
         },
         "MLU BinaryForward");
     return output;
@@ -133,13 +121,10 @@ BinaryBackwardImpl(const std::shared_ptr<Tensor> &grad_output, const std::shared
     auto dtype = grad_output->Dtype();
     const auto a_dtype = a ? a->Dtype() : dtype;
     const auto b_dtype = b ? b->Dtype() : dtype;
-    // 与 CUDA 版一致：计算 dtype 由前向保存的张量决定，而不是 grad_output
     const DataType promoted = PromoteDataTypes(a_dtype, b_dtype);
     auto g = Promote(grad_output, promoted);
     auto ap = a ? Promote(a, promoted) : nullptr;
     auto bp = b ? Promote(b, promoted) : nullptr;
-    // Add/Sub 的反向不需要 a/b 的值（grad_a=g, grad_b=±g），调用方传 nullptr；
-    // 用 g 占位保证 kernel 内索引不越界（公式本身不会读到）
     if (!ap) {
         ap = g;
     }
@@ -161,7 +146,6 @@ BinaryBackwardImpl(const std::shared_ptr<Tensor> &grad_output, const std::shared
         [=]<typename T>() {
             BinaryBackwardLaunch(grad_a->DataPtr(), grad_b->DataPtr(), g->DataPtr(), ap->DataPtr(), bp->DataPtr(), op,
                                  MluTypeTag<T>(), meta, numel_a, numel_b, numel_out, queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "BinaryBackward");
         },
         "MLU BinaryBackward");
     return {grad_a, grad_b};
@@ -175,14 +159,6 @@ std::shared_ptr<Tensor> ScalarForwardImpl(const std::shared_ptr<Tensor> &input, 
         [=]<typename T>() {
             ScalarForwardLaunch(output->DataPtr(), input->DataPtr(), value, op, MluTypeTag<T>(),
                                 static_cast<int64_t>(input->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "ScalarForward");
-            if (std::getenv("MLU_DEBUG_CHECK")) {
-                char tag[96];
-                std::snprintf(tag, sizeof(tag), "ScalarForward(op=%d,scalar=%g) in", static_cast<int>(op), value);
-                ::infini_train::core::mlu::DebugCheck<T>(input, tag);
-                std::snprintf(tag, sizeof(tag), "ScalarForward(op=%d,scalar=%g) out", static_cast<int>(op), value);
-                ::infini_train::core::mlu::DebugCheck<T>(output, tag);
-            }
         },
         "MLU ScalarForward");
     return output;
@@ -196,15 +172,12 @@ std::shared_ptr<Tensor> ScalarBackwardImpl(const std::shared_ptr<Tensor> &grad_o
         [=]<typename T>() {
             ScalarBackwardLaunch(grad_in->DataPtr(), grad_output->DataPtr(), value, op, MluTypeTag<T>(),
                                  static_cast<int64_t>(grad_output->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "ScalarBackward");
         },
         "MLU ScalarBackward");
     return grad_in;
 }
 
 } // namespace
-
-// ----------------------------- 一元 -----------------------------
 
 std::shared_ptr<Tensor> NegForward(const std::shared_ptr<Tensor> &input) {
     return UnaryForwardImpl(input, MluUnaryOp::kNeg);
@@ -260,7 +233,6 @@ std::shared_ptr<Tensor> LogBackward(const std::shared_ptr<Tensor> &grad_output, 
 std::shared_ptr<Tensor> SigmoidForward(const std::shared_ptr<Tensor> &input) {
     return UnaryForwardImpl(input, MluUnaryOp::kSigmoid);
 }
-// 注意调用方参数顺序是 (output, grad_output)
 std::shared_ptr<Tensor> SigmoidBackward(const std::shared_ptr<Tensor> &output,
                                         const std::shared_ptr<Tensor> &grad_output) {
     return UnaryBackwardImpl(grad_output, output, MluUnaryOp::kSigmoid);
@@ -275,8 +247,6 @@ std::shared_ptr<Tensor> PowForward(const std::shared_ptr<Tensor> &input, float e
         [=]<typename T>() {
             PowForwardLaunch(output->DataPtr(), input->DataPtr(), e, scalar_is_base, MluTypeTag<T>(),
                              static_cast<int64_t>(input->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "PowForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "PowForward");
         },
         "MLU PowForward");
     return output;
@@ -295,13 +265,10 @@ std::shared_ptr<Tensor> PowBackward(const std::shared_ptr<Tensor> &grad_output, 
         [=]<typename T>() {
             PowBackwardLaunch(grad_in->DataPtr(), g->DataPtr(), x->DataPtr(), e, scalar_is_base, MluTypeTag<T>(),
                               static_cast<int64_t>(g->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "PowBackward");
         },
         "MLU PowBackward");
     return grad_in;
 }
-
-// ----------------------------- 比较 -----------------------------
 
 std::shared_ptr<Tensor> EqualsForward(const std::shared_ptr<Tensor> &a, const std::shared_ptr<Tensor> &b) {
     CHECK(a->Dtype() == b->Dtype());
@@ -313,7 +280,6 @@ std::shared_ptr<Tensor> EqualsForward(const std::shared_ptr<Tensor> &a, const st
         [=]<typename T>() {
             EqualsForwardLaunch(output->DataPtr(), a->DataPtr(), b->DataPtr(), MluTypeTag<T>(), meta,
                                 static_cast<int64_t>(output->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "EqualsForward");
         },
         "MLU EqualsForward");
     return output;
@@ -328,13 +294,10 @@ std::shared_ptr<Tensor> EqualsScalarForward(const std::shared_ptr<Tensor> &input
         [=]<typename T>() {
             EqualsScalarForwardLaunch(output->DataPtr(), input->DataPtr(), value, MluTypeTag<T>(),
                                       static_cast<int64_t>(input->NumElements()), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "EqualsScalarForward");
         },
         "MLU EqualsScalarForward");
     return output;
 }
-
-// ----------------------------- 二元 -----------------------------
 
 std::shared_ptr<Tensor> AddForward(const std::shared_ptr<Tensor> &a, const std::shared_ptr<Tensor> &b) {
     return BinaryForwardImpl(a, b, MluBinaryOp::kAdd);

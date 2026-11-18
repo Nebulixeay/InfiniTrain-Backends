@@ -1,11 +1,14 @@
-// 对应上游 src/kernels/cuda/fill.cu 的 host 集成部分；设备 kernel 在 fill.mlu。
-
 #include <cstdint>
 #include <cstring>
 #include <memory>
-#include <type_traits>
+// Used by std::is_same_v in MluScalarCast.
+#include <type_traits> // IWYU pragma: keep
+
+#include <bang_bf16.h>
+#include <cnrt.h>
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/scalar.h"
@@ -15,14 +18,13 @@
 #include "runtime/mlu_dispatch.h"
 #include "runtime/mlu_runtime_common.h"
 
+struct __half;
+
 namespace infini_train::kernels::mlu {
 
 namespace {
 
-// Scalar::to<T>() 对 MLU 原生 16 位类型不能直接用：host 侧 __bang_bfloat16
-// 没有 double 构造函数（static_cast 在 float/int 等整型 ctor 间歧义）。
-// 按 scalar.h 中 TODO 的建议，后端自定义 scalar_cast，半精度统一走
-// double -> float -> half/bf16 两级转换，与框架 to<BF16>() 的舍入路径一致。
+// Convert scalar double to float before half/BF16 to avoid ambiguous BANG constructors.
 template <typename T> T MluScalarCast(const Scalar &scalar) {
     if constexpr (std::is_same_v<T, __half> || std::is_same_v<T, bfloat16_t>) {
         return T(scalar.to<float>());
@@ -46,15 +48,13 @@ void Fill(std::shared_ptr<Tensor> tensor, Scalar scalar) {
             static_assert(sizeof(T) <= sizeof(uint64_t));
             uint64_t value_bits = 0;
             std::memcpy(&value_bits, &value, sizeof(T));
-            // 零填充快路径：单核标量 kernel 写 154MB（如 embedding 梯度表）要跑分钟级，
-            // 实测会触发设备错误把队列搞崩；交零直接用 cnrtMemset（同步）
+            // Use synchronous cnrtMemset for zero fill to avoid slow scalar writes over large gradient buffers.
             if (value_bits == 0) {
                 CNRT_CHECK(cnrtMemset(tensor->DataPtr(), 0, static_cast<size_t>(tensor->NumElements()) * sizeof(T)));
                 return;
             }
             FillLaunch(tensor->DataPtr(), value_bits, MluTypeTag<T>(), static_cast<int64_t>(tensor->NumElements()),
                        queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "Fill");
         },
         "MLU Fill");
 }

@@ -1,8 +1,4 @@
-// 纯 BANG C kernel + 启动器（cncc 编译，只允许 C++11 级别语法，不含框架头）。
-// 框架集成见同目录 transform.cc。
-// 语义对应上游 src/kernels/cuda/transform.cu 与 slice.cu。
-// 与 CUDA 版的差异：维度/步长元数据以 POD（MluIndexMeta）按值传入 kernel
-// 参数空间，不再需要 cudaMallocAsync + H2D 上传。
+// BANG C device kernels; host/framework integration is in the matching .cc file.
 
 #include <stdint.h>
 
@@ -16,21 +12,8 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 并行度：本工具链下 dim.x*dim.y*dim.z 是本次启动
-// 占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock 为 1，
-// cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按输出线性下标
-// idx = taskId、步长 taskDim 分片，每个输出元素恰被一个 task 写一次，无需跨 task 同步。
-// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
-// 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd
-// 与 1_Performance/matmul 的 taskId/taskDim 切分范式。
-// 历史记录（保留）：tests/math_selftest 的探针在 cnrtFuncTypeUnion1 + dim={1,1,1} 下报
-// cnInvokeKernel 100006 CN_ERROR_INVALID_VALUE（1 core 少于 Union1 要求的 4 core，启动被驱动
-// 拒绝），而 dim={4,1,1} 下 taskDim=1、其 “taskIdX*coreDim+coreId” 公式只覆盖 1/4 下标。
-// 故旧结论“多任务/Union1 下循环写 GDRAM 只有首尾落盘”源于错误 dim 与错误索引公式，
-// See the kernel implementation and public regression tests for this behavior.
-
-// ----------------------------- Tril / Triu -----------------------------
-// 前向反向同形：满足条件保留原值，否则置 0
+// Partition independent elements or rows using taskId and taskDim.
+// Each output has one writer; reductions stay within a task in their original order.
 
 template <typename T, bool kTriu>
 __mlu_global__ void TrilTriuKernel(const T *input, T *output, int64_t rows, int64_t cols, int64_t diagonal) {
@@ -78,10 +61,8 @@ __mlu_global__ void SliceForwardKernel(const T *input, T *output, MluIndexMeta m
     }
 }
 
-// grad_input 调用前必须已清零（Fill 在同一 queue 上先行完成，与下面的分散写不构成竞争）。
-// 并行安全性：in_index = Σ_i (starts[i] + idx_i*steps[i]) * in_strides[i]，
-// 对 steps[i] >= 1，out_coord 是双射、in_strides 是输入的非退化行主序步长，故 out_idx -> in_index
-// 为单射：不同 task 不会写同一个 grad_input 元素，无需 atomic，结果确定。
+// Zero grad_input on the same queue before scatter. Positive slice steps and
+// contiguous strides give unique destination indices, so no atomics are needed.
 template <typename T>
 __mlu_global__ void SliceBackwardKernel(const T *grad_output, T *grad_input, MluIndexMeta meta, int64_t num_elements) {
     for (int64_t out_idx = taskId; out_idx < num_elements; out_idx += taskDim) {
@@ -94,9 +75,7 @@ __mlu_global__ void SliceBackwardKernel(const T *grad_output, T *grad_input, Mlu
     }
 }
 
-// ----------------------------- Mask（MaskedFill） -----------------------------
-// kTail: mask[i % mask_size]；kLead: mask[i / inner]
-// mask 在 host 侧已 Cast 成与 input 相同 dtype，按 == 1 判定（与 CUDA 版一致）
+// The host casts mask to the input dtype; entries equal to one are selected.
 
 template <typename T, bool kLead>
 __mlu_global__ void MaskForwardKernel(const T *input, const T *mask, T *output, T value, int64_t mask_extent,
@@ -116,9 +95,7 @@ __mlu_global__ void MaskBackwardKernel(const T *grad_output, const T *mask, T *g
     }
 }
 
-// ----------------------------- 启动器 -----------------------------
-
-// 启动配置：Block + {4,4,1} = 16 core / 16 task（厂商 global_var 示例同形，K-001 §4/§5）。
+// Block launch; taskId/taskDim partition the independent work.
 const cnrtDim3_t kDim = {4, 4, 1};
 
 template <typename T>

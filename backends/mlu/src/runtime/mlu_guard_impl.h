@@ -1,16 +1,12 @@
 #pragma once
 
-// 对应 master 上 src/core/runtime/cuda/cuda_guard_impl.h。
-// 注意：master 的 PrivateUse1 机制下不再新增 DeviceType::kMLU 枚举，
-// MLU 后端统一占用 DeviceType::kPrivateUse1。
+#include <cstddef>
+#include <cstdint>
+#include <utility>
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/device.h"
-
-namespace infini_train::core {
-class Stream;
-class BlasHandle;
-} // namespace infini_train::core
 
 namespace infini_train::core::mlu {
 
@@ -33,11 +29,6 @@ public:
 
     // stream
     Stream *GetStream(Device device) const override;
-
-    // The pinned InfiniTrain revision (c90338c) does not declare
-    // DeviceGuardImpl::ExchangeStream, so this backend does not override it. The
-    // previous implementation was never called; if a later framework revision
-    // brings the interface back, implement it here and mark it override again.
 
     Stream *CreateStream(Device device) const override;
 

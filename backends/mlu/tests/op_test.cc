@@ -1,20 +1,6 @@
-// 逐算子对拍 + 比较器自检 + 探针用例。
-//
-// 判据（R01 修正后）：
-//   1) 先按显式期望分类：ref 为 NaN/±Inf 时要求 got 同类（NaN↔NaN、同号 Inf），
-//      且只有声明"允许特殊参考"的域用例才接受 ref 非有限；
-//   2) ref 有限时 got 必须有限，再用 |got-ref| <= atol + rtol*|ref|；
-//   3) 普通用例出现非预期 NaN/Inf（哪怕两侧相同）一律失败。
-//
-// 模式（解析在 backend 注册与设备初始化之前完成）：
-//   （默认）            设备对拍套件；有失败 → 退出 1
-//   --comparator-selftest  纯 host，逐个断言比较器判断，全部符合才退出 0
-//   --inject-finite     设备对拍并注入有限误差，预期整轮失败（退出非 0，由外层脚本检查）
-//   --inject-nan        设备对拍并注入非预期 NaN，预期整轮失败
-//   --probe-case NAME   设备上的探针用例（只分配+拷贝，不发 kernel），配合 MLU_DEBUG_CHECK=1 由脚本断言日志
-//   --bf16-gate         028：BF16 公式级门禁（Cast 双向 / Linear fwd+bwd / elementwise promote /
-//                       BF16 grad + FP32 param 的 AccumulateGrad），四组全部符合才退出 0
-//   --device N          选择设备
+// Operator comparisons against CPU and independent analytic references.
+// Non-finite references require explicit opt-in and matching NaN/Inf classification.
+// Finite references require finite results within atol + rtol * abs(reference).
 
 #include <algorithm>
 #include <cmath>
@@ -22,7 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <random>
@@ -37,7 +23,6 @@
 #include "infini_train/include/tensor.h"
 
 #include "infini_train_mlu/backend.h"
-#include "runtime/mlu_debug.h"
 
 namespace {
 
@@ -45,7 +30,6 @@ using infini_train::DataType;
 using infini_train::Device;
 using infini_train::Tensor;
 
-constexpr cnrtRet_t CNRT_RET_SUCCESS_LOCAL = cnrtSuccess;
 constexpr auto kCPU = Device::DeviceType::kCPU;
 constexpr auto kMLU = Device::DeviceType::kPrivateUse1;
 
@@ -98,9 +82,7 @@ std::vector<float> RandVec(size_t n, float scale, uint32_t seed) {
     return v;
 }
 
-// ---------------------------------------------------------------------------
-// 比较器（R01）：非有限优先分类，只有两侧都有限时才用 atol+rtol
-// ---------------------------------------------------------------------------
+// Classify non-finite values before applying tolerances to finite pairs.
 struct Verdict {
     size_t bad = 0;
     size_t worst = 0;
@@ -122,7 +104,7 @@ Verdict Evaluate(const std::vector<float> &ref, const std::vector<float> &got, d
         const bool a_inf = std::isinf(a), b_inf = std::isinf(b);
 
         if (a_nan || a_inf) {
-            // 参考本身非有限：只有声明允许时才可接受，且必须同类同号
+            // Non-finite references require opt-in and matching classification/sign.
             const bool same = (a_nan && b_nan) || (a_inf && b_inf && ((a > 0) == (b > 0)));
             if (!allow_special_ref || !same) {
                 ++v.bad;
@@ -131,7 +113,7 @@ Verdict Evaluate(const std::vector<float> &ref, const std::vector<float> &got, d
             }
             continue;
         }
-        if (b_nan || b_inf) { // 参考有限但结果非有限：一律失败
+        if (b_nan || b_inf) { // Finite reference requires a finite result.
             ++v.bad;
             v.worst = i;
             v.max_abs = std::numeric_limits<double>::infinity();
@@ -167,7 +149,7 @@ bool Compare(const std::string &name, const std::vector<float> &ref, const std::
     return ok;
 }
 
-// 用解析期望值直接断言（不依赖 CPU 实现，R06）
+// Check independent analytic expectations, without relying on the CPU kernel.
 bool CompareAnalytic(const std::string &name, const std::vector<double> &expect, const std::vector<float> &got,
                      double atol, double rtol) {
     std::vector<float> ref(expect.size());
@@ -175,9 +157,7 @@ bool CompareAnalytic(const std::string &name, const std::vector<double> &expect,
     return Compare(name, ref, got, atol, rtol, /*allow_special_ref=*/true);
 }
 
-// ---------------------------------------------------------------------------
-// 纯 host：比较器自检（R02/R06），不初始化设备
-// ---------------------------------------------------------------------------
+// Host-only comparator self-test; no device initialization.
 int RunComparatorSelftest() {
     struct Case {
         const char *name;
@@ -221,9 +201,6 @@ int RunComparatorSelftest() {
     return failures == 0 ? 0 : 1;
 }
 
-// ---------------------------------------------------------------------------
-// 设备侧小算子用例
-// ---------------------------------------------------------------------------
 void ApplyInjection(std::vector<float> &mlu) {
     if (mlu.empty()) {
         return;
@@ -292,8 +269,6 @@ void TestLinearBackward(int64_t rows, int64_t in_f, int64_t out_f, bool transpos
     Compare(std::string("Linear bwd db ") + tag, cpu_db, mlu_db, 1e-5, 1e-4);
 }
 
-// Pow：解析期望（R06）——0^0.5=0, 0^0=1, (-2)^9=-512, (-2)^0.5=NaN, 2^0.5=sqrt2,
-// (-2)^3=-8, 0.5^-1=2, base=3/exp=2 => 9
 void TestPowAnalytic() {
     struct Case {
         float input;
@@ -310,7 +285,7 @@ void TestPowAnalytic() {
         {2.0f, 0.5f, false, std::sqrt(2.0), "2^0.5"},
         {-2.0f, 3.0f, false, -8.0, "(-2)^3"},
         {0.5f, -1.0f, false, 2.0, "0.5^-1"},
-        {2.0f, 3.0f, true, 9.0, "base=3 exp=2 -> 9"}, // tensor=2 是指数，scalar=3 是底数
+        {2.0f, 3.0f, true, 9.0, "base=3 exp=2 -> 9"}, // tensor is the exponent; scalar is the base.
     };
     for (const auto &c : cases) {
         auto run = [&](Device dev) {
@@ -323,12 +298,12 @@ void TestPowAnalytic() {
         auto got = run(Mlu());
         char name[96];
         std::snprintf(name, sizeof(name), "Pow %s", c.desc);
-        // 解析期望与 CPU 参考双保险：先按解析值断言，再与 CPU 对拍
+        // Check analytic values first, then compare against CPU.
         CompareAnalytic(std::string(name) + " [analytic]", {c.expect}, got, 1e-6, 1e-5);
         Compare(std::string(name) + " [vs cpu]", cpu, got, 1e-6, 1e-5, /*allow_special_ref=*/true);
     }
 
-    // scalar_is_base 反向：y=base^x, dy/dx = base^x*ln(base)；base=3, x=2, grad=2 -> 2*9*ln3
+    // For y = base^x, dy/dx = base^x * log(base).
     {
         const float base = 3.0f, xval = 2.0f, grad = 2.0f;
         const double expect = static_cast<double>(grad) * std::pow(base, xval) * std::log(base);
@@ -342,7 +317,7 @@ void TestPowAnalytic() {
         CompareAnalytic("Pow bwd scalar_is_base=3 x=2 grad=2", {expect}, run(Mlu()), 1e-5, 1e-5);
     }
 
-    // Pow(x,3) 前向/反向，输入显式含 0 与负值
+    // Include zero and negative inputs for both forward and backward.
     {
         const std::vector<float> xs = {0.0f, -2.0f, 0.5f, 3.0f};
         const std::vector<float> gs = {1.0f, 2.0f, -1.0f, 0.5f};
@@ -350,7 +325,7 @@ void TestPowAnalytic() {
         for (size_t i = 0; i < xs.size(); ++i) {
             const double x = xs[i];
             exp_f[i] = x * x * x;
-            exp_b[i] = static_cast<double>(gs[i]) * 3.0 * x * x; // x=0 处为 0
+            exp_b[i] = static_cast<double>(gs[i]) * 3.0 * x * x; // Zero at x = 0.
         }
         auto run_fwd = [&](Device dev) {
             auto xt = MakeTensor({4}, xs, dev);
@@ -449,71 +424,8 @@ void TestTranspose(int64_t b, int64_t h, int64_t t, int64_t d) {
     Compare("Transpose(1,2)", run(Cpu()), run(Mlu()), 1e-5, 1e-4);
 }
 
-// ---------------------------------------------------------------------------
-// 探针用例（R05）：只分配 + 拷贝，不发 kernel；由脚本配合 MLU_DEBUG_CHECK=1 断言日志
-// ---------------------------------------------------------------------------
-template <typename Bits>
-std::shared_ptr<Tensor> MakeRawTensor(const std::vector<int64_t> &dims, const std::vector<Bits> &bits, DataType dt,
-                                      Device dev) {
-    auto t = std::make_shared<Tensor>(dims, dt, dev);
-    infini_train::core::GetDeviceGuardImpl(dev.type())
-        ->Memcpy(t->DataPtr(), bits.data(), bits.size() * sizeof(Bits), infini_train::core::MemcpyKind::kH2D);
-    return t;
-}
-
-int RunProbeCase(const std::string &name) {
-    using infini_train::core::mlu::DebugCheck;
-    if (name == "fp32_special") {
-        // [1, NaN, +Inf, -Inf, 0] -> non_finite=3, 有限 min=0 max=1
-        auto t = MakeTensor({5},
-                            {1.0f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
-                             -std::numeric_limits<float>::infinity(), 0.0f},
-                            Mlu());
-        DebugCheck<float>(t, "probe_fp32_special");
-    } else if (name == "first_nan") {
-        // 首元素 NaN：[NaN, 1, 2] -> non_finite=1, min=1 max=2（验证首个有限值初始化）
-        auto t = MakeTensor({3}, {std::numeric_limits<float>::quiet_NaN(), 1.0f, 2.0f}, Mlu());
-        DebugCheck<float>(t, "probe_first_nan");
-    } else if (name == "all_nonfinite") {
-        auto t = MakeTensor({3},
-                            {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
-                             -std::numeric_limits<float>::infinity()},
-                            Mlu());
-        DebugCheck<float>(t, "probe_all_nonfinite");
-    } else if (name == "bf16_bits") {
-        // 0x7c00 是合法有限 bf16（指数 0xf8），0x7f80 才是 +Inf，0x3f80=1.0，0x8000=-0
-        std::vector<uint16_t> bits = {0x7c00, 0x7f80, 0x3f80, 0x8000};
-        auto t = MakeRawTensor<uint16_t>({4}, bits, DataType::kBFLOAT16, Mlu());
-        DebugCheck<uint16_t>(t, "probe_bf16_bits");
-    } else if (name == "fp16_bits") {
-        // 0x7c00 是 +Inf（fp16 指数 0x1f），0x3c00=1.0，0xfc00=-Inf
-        std::vector<uint16_t> bits = {0x7c00, 0x3c00, 0xfc00};
-        auto t = MakeRawTensor<uint16_t>({3}, bits, DataType::kFLOAT16, Mlu());
-        DebugCheck<uint16_t>(t, "probe_fp16_bits");
-    } else if (name == "int_wide") {
-        // 宽整数范围（R04）：UINT64_MAX 与 INT64_MIN/MAX 不得显示成 -1 或溢出
-        std::vector<uint64_t> u = {0, 18446744073709551615ULL};
-        auto tu = MakeRawTensor<uint64_t>({2}, u, DataType::kUINT64, Mlu());
-        DebugCheck<uint64_t>(tu, "probe_uint64");
-        std::vector<int64_t> s = {INT64_MIN, INT64_MAX};
-        auto ts = MakeRawTensor<int64_t>({2}, s, DataType::kINT64, Mlu());
-        DebugCheck<int64_t>(ts, "probe_int64");
-    } else {
-        std::printf("unknown probe case: %s\n", name.c_str());
-        return 2;
-    }
-    return 0;
-}
-
-// ---------------------------------------------------------------------------
-// 关键反向设备用例（--backward-group a|b|all）
-//
-// 同步约定：所有 D2H 一律用既有阻塞 ToHost（MluGuardImpl::Memcpy：在当前 queue 上
-// cnrtMemcpyAsync + cnrtQueueSync，函数返回即表示已完成；它返回 void，内部用
-// CNRT_CHECK 检查，失败会终止进程）。禁止用 Tensor::To(kCPU)：tensor.cc 的 D2H
-// 只入队不同步，不能当完成证明。每个 MLU case 内显式 DeviceGuard(Mlu())，保证
-// current device/stream 与 kernel 用的是同一队列。
-// ---------------------------------------------------------------------------
+// Backward regressions use blocking ToHost copies on the current device stream.
+// A DeviceGuard keeps kernel execution and copy-back on the same device/queue.
 std::string g_backward_group;
 
 bool BwdCheckTensor(const char *name, const std::shared_ptr<Tensor> &t, const std::vector<int64_t> &dims,
@@ -536,7 +448,7 @@ bool BwdCheckTensor(const char *name, const std::shared_ptr<Tensor> &t, const st
     return true;
 }
 
-// 同步日志 helper：必须在 DeviceGuard(Mlu()) 内调用，取到的才是本 case 实际使用的 stream。
+// Call inside the test DeviceGuard so the recorded stream matches execution.
 std::string MluStreamTag() {
     auto *impl = infini_train::core::GetDeviceGuardImpl(Device::DeviceType::kPrivateUse1);
     auto *stream = impl->GetStream(Mlu());
@@ -545,16 +457,14 @@ std::string MluStreamTag() {
     return std::string(buf);
 }
 
-// 必须在对应 D2H 阻塞读回返回之后才调用。返回 void 的是内部 MluGuardImpl::Memcpy
-// （当前 queue cnrtMemcpyAsync + cnrtQueueSync，失败由 CNRT_CHECK 终止进程）；
-// ToHost 本身返回 std::vector<float>，本日志只声明"该次读回已返回"，不伪造 Memcpy 的 rc。
+// Log completion only after blocking ToHost returns; CNRT errors abort inside Memcpy.
 void LogBackwardCaseSync(const char *name) {
     std::printf("[bwd] case=%s %s sync=blocking_Memcpy_current_queue host_read_after_tohost_returned "
-                "internal_check=CNRT_CHECK\n",
+                "internal_check=MLU_CNRT_CHECK\n",
                 name, MluStreamTag().c_str());
 }
 
-// 先验 size/有限性，再走既有 Compare（rtol=0，只用绝对门槛）；注入只改结果副本。
+// Validate size and finiteness before absolute-tolerance comparison. Inject faults only into the result copy.
 bool BwdCompare(const char *name, const std::vector<double> &expect, const std::vector<float> &got, double atol) {
     if (expect.size() != got.size()) {
         std::printf("%-46s FAIL size expect=%zu got=%zu\n", name, expect.size(), got.size());
@@ -569,7 +479,7 @@ bool BwdCompare(const char *name, const std::vector<double> &expect, const std::
             return false;
         }
         ref[i] = static_cast<float>(expect[i]);
-        if (!std::isfinite(ref[i])) { // double -> float 转换溢出
+        if (!std::isfinite(ref[i])) { // double-to-float overflow
             std::printf("%-46s FAIL analytic reference overflows float at %zu\n", name, i);
             g_failed = true;
             return false;
@@ -590,7 +500,7 @@ void TestEmbeddingBackward() {
     const std::vector<int64_t> weight_dims{vocab, dim};
     std::vector<float> grad(static_cast<size_t>(tokens * dim));
     for (size_t i = 0; i < grad.size(); ++i) { grad[i] = static_cast<float>(static_cast<int>(i % 17) - 8) / 64.0f; }
-    // 独立 double scatter-add 参考（含重复 token 累加）
+    // Independent double scatter-add reference, including repeated token IDs.
     std::vector<double> expect(static_cast<size_t>(vocab * dim), 0.0);
     for (int64_t t = 0; t < tokens; ++t) {
         for (int64_t c = 0; c < dim; ++c) {
@@ -707,11 +617,11 @@ void TestAccumulateGrad() {
     std::vector<float> grad(static_cast<size_t>(n));
     for (int64_t i = 0; i < n; ++i) {
         init[static_cast<size_t>(i)] = static_cast<float>(static_cast<int>(i % 9) - 4) / 8.0f;
-        if (init[static_cast<size_t>(i)] == 0.0f) { // 契约要求非零初值
+        if (init[static_cast<size_t>(i)] == 0.0f) { // Require nonzero initial values.
             init[static_cast<size_t>(i)] = 0.125f;
         }
         grad[static_cast<size_t>(i)] = static_cast<float>(static_cast<int>(i % 7) - 3) / 16.0f;
-        if (grad[static_cast<size_t>(i)] == 0.0f) { // 契约要求非零 gradient
+        if (grad[static_cast<size_t>(i)] == 0.0f) { // Require nonzero gradients.
             grad[static_cast<size_t>(i)] = -0.0625f;
         }
     }
@@ -740,7 +650,7 @@ void TestAccumulateGrad() {
             }
             auto kernel = infini_train::Dispatcher::Instance().GetKernel({kMLU, "AccumulateGrad"});
             kernel.Call<void>(g_mlu, role.rate, t_mlu);
-            // 原地张量：调用后重新校验再读回
+            // Revalidate the in-place tensor before copying back the result.
             if (!BwdCheckTensor("AccumulateGrad mlu target after call", t_mlu, {n}, DataType::kFLOAT32)) {
                 return;
             }
@@ -759,7 +669,7 @@ void TestAccumulateGrad() {
             }
             auto cpu_kernel = infini_train::Dispatcher::Instance().GetKernel({kCPU, "AccumulateGrad"});
             cpu_kernel.Call<void>(g_cpu, role.rate, t_cpu);
-            // 原地张量：CPU 调用后同样重新校验再读回
+            // Revalidate the in-place tensor before copying back the result.
             if (!BwdCheckTensor("AccumulateGrad cpu target after call", t_cpu, {n}, DataType::kFLOAT32)) {
                 return;
             }
@@ -769,7 +679,6 @@ void TestAccumulateGrad() {
             }
         }
     }
-    // 中性汇总：不打印 PASS，也不隐瞒上面的失败（g_failed/rc 已由 BwdCompare 设置）
     std::printf("%-46s neutral: assertions=%d failed=%d (kernel-level rate, not the training accumulation rate)\n",
                 "AccumulateGrad roles finished", assertions, failures);
 }
@@ -806,7 +715,7 @@ void TestSoftmaxBackward() {
                 }
             }
         }
-        // 独立 double 稳定 softmax + 反向解析参考
+        // Independent stable softmax and analytic backward reference in double.
         std::vector<double> expect(static_cast<size_t>(rows * cols), 0.0);
         std::vector<double> prob(static_cast<size_t>(rows * cols), 0.0);
         for (int64_t r = 0; r < rows; ++r) {
@@ -853,7 +762,7 @@ void TestSoftmaxBackward() {
         }
         std::printf("%-46s %s\n", (std::string(mask.name) + " cpu forward finite").c_str(),
                     y_cpu_finite ? "PASS" : "FAIL");
-        if (!y_cpu_finite) { // CPU 前向非有限：同样记失败并跳过该 mask，不喂给 Backward
+        if (!y_cpu_finite) { // Reject non-finite CPU forward output before backward.
             g_failed = true;
             std::printf("%-46s SKIP (cpu forward non-finite; backward not run for this case)\n", mask.name);
             continue;
@@ -889,7 +798,7 @@ void TestSoftmaxBackward() {
         if (mask.kind != 0) {
             bool mask_prob_zero = true;
             for (int64_t r = 0; r < rows; ++r) {
-                for (int64_t c = 1; c < cols; c += 2) { // 奇数列被掩码
+                for (int64_t c = 1; c < cols; c += 2) { // Mask odd columns.
                     const float v = y_host[static_cast<size_t>(r * cols + c)];
                     if (!std::isfinite(v) || v != 0.0f) {
                         mask_prob_zero = false;
@@ -914,7 +823,7 @@ void TestSoftmaxBackward() {
         if (mask.kind != 0) {
             bool masked_zero = true;
             for (int64_t r = 0; r < rows; ++r) {
-                for (int64_t c = 1; c < cols; c += 2) { // 奇数列被掩码
+                for (int64_t c = 1; c < cols; c += 2) { // Mask odd columns.
                     const float v = mlu_host[static_cast<size_t>(r * cols + c)];
                     if (!std::isfinite(v) || v != 0.0f) {
                         masked_zero = false;
@@ -989,7 +898,7 @@ void TestLayerNormBackward() {
         || !BwdCheckTensor("LayerNorm db shape/dtype", std::get<2>(bwd_mlu), param_dims, DataType::kFLOAT32)) {
         return;
     }
-    // 三份梯度各自完成阻塞读回后才记该 case 完成，随后比较全部复用本地 vector
+    // Compare all three gradients only after their blocking copies complete.
     std::vector<float> dx_host = ToHost(std::get<0>(bwd_mlu));
     std::vector<float> dw_host = ToHost(std::get<1>(bwd_mlu));
     std::vector<float> db_host = ToHost(std::get<2>(bwd_mlu));
@@ -998,7 +907,7 @@ void TestLayerNormBackward() {
     BwdCompare("LayerNorm dW vs cpu", ToDouble(cpu_dw), dw_host, 1e-5);
     BwdCompare("LayerNorm db vs cpu", ToDouble(cpu_db), db_host, 1e-5);
 
-    // 固定框架测试的第一例期望值（tests/autograd/test_autograd_normalization_backward.cc）
+    // Reference the first case in tests/autograd/test_autograd_normalization_backward.cc.
     const std::vector<double> expect_dx{1.60994446, 0.08943637,  -5.00876665, 3.30938578,
                                         0.15652537, -0.02236041, -0.42485276, 0.29068780};
     const std::vector<double> expect_dw{-2.01245522, -0.44721049, 2.23606181, 4.69572210};
@@ -1064,7 +973,7 @@ void TestMatmulBackward() {
 
         auto a_cpu = MakeTensor(one.a_dims, a_host, Cpu());
         auto b_cpu = MakeTensor(one.b_dims, b_host, Cpu());
-        // grad_output 的 shape 是 A_dims[:-1] + B_dims[-1:]（A 末维为 k，需换成 n）
+        // The output shape replaces the last input dimension k with n.
         std::vector<int64_t> g_dims = one.a_dims;
         g_dims.back() = n;
         auto g_cpu = MakeTensor(g_dims, g_host, Cpu());
@@ -1101,20 +1010,8 @@ void TestMatmulBackward() {
 
 } // namespace
 
-// ---------------------------------------------------------------------------
-// BF16 公式级门禁（--bf16-gate）
-//
-// 目的：在一次 ≤10 s 的设备运行里判定「BF16 这条路能不能走」，四组最小覆盖：
-//   1) Cast 双向：fp32->bf16 位模式逐位对框架 host helper；bf16->fp32 精确回读；
-//   2) Linear forward/backward 在 BF16 输入下对 double 解析参考（输出本身是 bf16，故真值也圆整）；
-//   3) elementwise promote：bf16 + fp32 的结果 dtype 必须是 FP32，且数值对 double 参考；
-//   4) BF16 grad + FP32 param 的 AccumulateGrad：**允许显式拒绝，禁止静默错值**
-//      （静默错值/静默无操作都算 FAIL，runner 据 SILENT_* 标记分级 S2_GATE_FAILED_PRODUCT_ISSUE）。
-//
-// 真值来源约束：一律用框架 host helper
-// （infini_train::detail::FloatToBf16Bits / Bf16BitsToFloat）或 double 解析给出，
-// 不得用被测 Cast kernel 生成真值，避免循环论证。
-// ---------------------------------------------------------------------------
+// BF16 tests use host conversion helpers and analytic references, not the cast kernel under test.
+// Mixed-dtype accumulation must reject explicitly rather than corrupting or skipping updates.
 namespace bf16_gate {
 
 std::shared_ptr<Tensor> MakeTensorBf16(const std::vector<int64_t> &dims, const std::vector<float> &host, Device dev) {
@@ -1130,7 +1027,7 @@ std::shared_ptr<Tensor> MakeTensorBf16(const std::vector<int64_t> &dims, const s
     return t;
 }
 
-// BF16 只能按 16 bit 读回；按 sizeof(float) 读会错位读取。
+// Copy BF16 storage as 16-bit elements, never as float-sized elements.
 std::vector<uint16_t> ToHostBf16Bits(const std::shared_ptr<Tensor> &t) {
     std::vector<uint16_t> bits(t->NumElements());
     if (t->GetDevice().type() == kCPU) {
@@ -1150,7 +1047,6 @@ std::vector<float> RoundVec(const std::vector<float> &v) {
     return out;
 }
 
-// 1) Cast 双向
 bool TestCast() {
     const int64_t n = 64;
     std::vector<float> src(static_cast<size_t>(n));
@@ -1164,13 +1060,13 @@ bool TestCast() {
             break;
         case 2:
             src[i] = 1.0e-38f * static_cast<float>(i + 1);
-            break; // bf16 次正规附近
+            break; // Near BF16 subnormals.
         case 3:
             src[i] = 3.0e38f;
-            break; // 大值
+            break; // Large values.
         case 4:
             src[i] = 1.0f + static_cast<float>(i) / 256.0f;
-            break; // 需要舍入
+            break; // Requires rounding.
         case 5:
             src[i] = -1.0f - static_cast<float>(i) / 512.0f;
             break;
@@ -1472,22 +1368,16 @@ bool TestSoftmaxBackwardDtypes(DataType saved, DataType incoming, const std::vec
     return BwdCompare("SoftmaxBackward analytic", expected, got, 1e-5) && valid;
 }
 
-int RunSoftmaxBackwardGate(bool probe) {
+int RunSoftmaxBackwardGate() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     bool ok = true;
-    if (probe) {
-        // Only this direction is safe with the old implementation: its BF16
-        // read is shorter than the actual FP32 allocation, never out of bounds.
-        ok = TestSoftmaxBackwardDtypes(DataType::kBFLOAT16, DataType::kFLOAT32, {2, 7}, -1);
-    } else {
-        for (auto saved : {DataType::kFLOAT32, DataType::kBFLOAT16}) {
-            for (auto incoming : {DataType::kFLOAT32, DataType::kBFLOAT16}) {
-                ok = TestSoftmaxBackwardDtypes(saved, incoming, {2, 7}, -1) && ok;
-                ok = TestSoftmaxBackwardDtypes(saved, incoming, {2, 7, 3}, 1) && ok;
-            }
+    for (auto saved : {DataType::kFLOAT32, DataType::kBFLOAT16}) {
+        for (auto incoming : {DataType::kFLOAT32, DataType::kBFLOAT16}) {
+            ok = TestSoftmaxBackwardDtypes(saved, incoming, {2, 7}, -1) && ok;
+            ok = TestSoftmaxBackwardDtypes(saved, incoming, {2, 7, 3}, 1) && ok;
         }
-        ok = TestSoftmaxBackwardDtypes(DataType::kBFLOAT16, DataType::kFLOAT32, {4, 12, 64, 64}, -1) && ok;
     }
+    ok = TestSoftmaxBackwardDtypes(DataType::kBFLOAT16, DataType::kFLOAT32, {4, 12, 64, 64}, -1) && ok;
     std::printf("RESULT: %s\n", ok && !g_failed ? "PASS" : "FAIL");
     return ok && !g_failed ? 0 : 1;
 }
@@ -1506,7 +1396,6 @@ int RunLinearBackwardGate() {
     return ok && !g_failed ? 0 : 1;
 }
 
-// 3) elementwise promote：bf16 + fp32 的结果 dtype 必须是 FP32
 bool TestPromote(int64_t n) {
     const auto a = RandVec(static_cast<size_t>(n), 1.0f, 501);
     const auto ar = bf16_gate::RoundVec(a);
@@ -1530,9 +1419,8 @@ bool TestPromote(int64_t n) {
     return ok;
 }
 
-// 4) BF16 grad + FP32 param 的 AccumulateGrad
-//    返回：0=数值一致（安全），1=静默无操作，2=静默错值（把 fp32 内存按 bf16 解释）
-//    说明：若 kernel/框架显式拒绝，进程会 CHECK/异常终止，runner 在日志里看到即按「显式拒绝」处理。
+// Return 0 for correct values, 1 for a silent no-op, or 2 for corruption.
+// An explicit product rejection aborts and is checked by the caller.
 int TestAccumulateGradMismatch() {
     const int64_t n = 64;
     const auto init = RandVec(static_cast<size_t>(n), 1.0f, 601);
@@ -1542,10 +1430,10 @@ int TestAccumulateGradMismatch() {
     {
         infini_train::core::DeviceGuard guard(Mlu());
         auto t = MakeTensor({n}, init, Mlu());                // FP32 target
-        auto g = bf16_gate::MakeTensorBf16({n}, grad, Mlu()); // BF16 grad（故意错配）
+        auto g = bf16_gate::MakeTensorBf16({n}, grad, Mlu()); // Intentionally mismatched BF16 gradient.
         auto kernel = infini_train::Dispatcher::Instance().GetKernel({kMLU, "AccumulateGrad"});
         kernel.Call<void>(g, -0.5f, t);
-        got = ToHost(t); // 阻塞读回（MluGuardImpl::Memcpy 内部 cnrtQueueSync）
+        got = ToHost(t); // Blocking copy via MluGuardImpl::Memcpy.
     }
     size_t exact = 0, changed = 0;
     for (int64_t i = 0; i < n; ++i) {
@@ -1577,8 +1465,7 @@ int TestAccumulateGradMismatch() {
 }
 
 int RunBf16Gate() {
-    // CHECK 会 abort，而 stdout 重定向到文件时是全缓冲 —— 不关缓冲就可能在 abort 时丢掉
-    // 组 1–3 的 PASS 行，导致"三组仍通过"无法复核。这里显式关闭缓冲。
+    // Disable stdout buffering so preceding test results survive an expected rejection.
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("[bf16-gate] begin device=%d\n", g_device);
     int fails = 0;
@@ -1594,8 +1481,7 @@ int RunBf16Gate() {
     if (!TestPromote(64)) {
         ++fails;
     }
-    // 预声明标记：若产品按约定显式中止（Alt-A），进程会在下面这一行之后终止、不会打印 RESULT，
-    // runner 凭"组 1–3 PASS + 本标记 + 固定 mismatch token + 无 RESULT"判定为"明确拒绝"。
+    // An expected dtype rejection terminates after this marker without printing RESULT.
     std::printf("[bf16-gate] mixed_dtype_probe begin expect=EXPLICIT_REFUSAL\n");
     std::fflush(stdout);
     const int mixed = TestAccumulateGradMismatch();
@@ -1610,24 +1496,46 @@ int RunBf16Gate() {
 
 } // namespace bf16_gate
 
+// CPU tensors suffice: invalid inputs must be rejected before accessing an MLU queue.
+int RunInvalidInputCase(const std::string &name) {
+    auto &dispatcher = infini_train::Dispatcher::Instance();
+    if (name == "slice-zero-step") {
+        auto input = MakeTensor({2}, {1.0f, 2.0f}, Cpu());
+        dispatcher.GetKernel({kMLU, "SliceForward"})
+            .Call<std::shared_ptr<Tensor>>(input, std::vector<int64_t>{0}, std::vector<int64_t>{2},
+                                           std::vector<int64_t>{0});
+    } else if (name == "layernorm-mixed-dtype") {
+        auto input = std::make_shared<Tensor>(std::vector<int64_t>{1, 1, 2}, DataType::kBFLOAT16, Cpu());
+        auto weight = MakeTensor({2}, {1.0f, 1.0f}, Cpu());
+        auto bias = MakeTensor({2}, {0.0f, 0.0f}, Cpu());
+        using Outputs = std::tuple<std::shared_ptr<Tensor>, std::shared_ptr<Tensor>, std::shared_ptr<Tensor>>;
+        dispatcher.GetKernel({kMLU, "LayerNormForward"}).Call<Outputs>(input, weight, bias, 1e-5f);
+    } else {
+        return 2;
+    }
+    std::printf("FAIL: invalid input was accepted\n");
+    return 1;
+}
+
 int main(int argc, char **argv) {
-    // 模式解析必须在 backend 注册/设备初始化之前
-    std::string probe_case;
-    std::string status_test;
+    // Validate arguments before backend registration or device initialization.
     bool comparator_selftest = false;
     bool backward_group_given = false;
     bool bf16_gate = false;
     bool linear_backward_gate = false;
     bool softmax_backward_gate = false;
-    bool softmax_backward_probe = false;
+    std::string invalid_input_case;
     for (int i = 1; i < argc; ++i) {
         const std::string arg(argv[i]);
         if (arg == "--comparator-selftest") {
             comparator_selftest = true;
+        } else if (arg == "--invalid-input-case" && i + 1 < argc) {
+            invalid_input_case = argv[++i];
+            if (invalid_input_case != "slice-zero-step" && invalid_input_case != "layernorm-mixed-dtype") {
+                return 2;
+            }
         } else if (arg == "--softmax-backward-gate") {
             softmax_backward_gate = true;
-        } else if (arg == "--softmax-backward-probe") {
-            softmax_backward_probe = true;
         } else if (arg == "--linear-backward-gate") {
             linear_backward_gate = true;
         } else if (arg == "--bf16-gate") {
@@ -1636,10 +1544,6 @@ int main(int argc, char **argv) {
             g_inject_finite = true;
         } else if (arg == "--inject-nan") {
             g_inject_nan = true;
-        } else if (arg == "--debug-status-test" && i + 1 < argc) {
-            status_test = argv[++i];
-        } else if (arg == "--probe-case" && i + 1 < argc) {
-            probe_case = argv[++i];
         } else if (arg == "--device" && i + 1 < argc) {
             g_device = std::atoi(argv[++i]);
         } else if (arg == "--backward-group" && i + 1 < argc) {
@@ -1651,8 +1555,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    // 先区分“是否给了参数”与“取值”，空值同样拒绝（否则会被当成未传而跑默认套件）；
-    // 取值与模式冲突也必须在 backend 注册/设备初始化之前拒绝。
+    // Reject empty/invalid group values before device initialization.
     if (backward_group_given
         && (g_backward_group.empty()
             || (g_backward_group != "a" && g_backward_group != "b" && g_backward_group != "all"))) {
@@ -1660,74 +1563,38 @@ int main(int argc, char **argv) {
                     g_backward_group.c_str());
         return 2;
     }
-    if (backward_group_given && (comparator_selftest || !status_test.empty() || !probe_case.empty())) {
-        std::printf(
-            "--backward-group cannot be combined with --comparator-selftest/--debug-status-test/--probe-case\n");
-        return 2;
-    }
-    if (bf16_gate && (backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) {
-        std::printf("--bf16-gate cannot be combined with --backward-group/--comparator-selftest/"
-                    "--debug-status-test/--probe-case\n");
-        return 2;
-    }
-
-    if (linear_backward_gate
-        && (bf16_gate || backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) {
-        return 2;
-    }
-    if ((softmax_backward_gate || softmax_backward_probe)
-        && ((softmax_backward_gate && softmax_backward_probe) || linear_backward_gate || bf16_gate
-            || backward_group_given || comparator_selftest || !status_test.empty() || !probe_case.empty())) {
+    if (static_cast<int>(backward_group_given) + static_cast<int>(bf16_gate) + static_cast<int>(linear_backward_gate)
+            + static_cast<int>(softmax_backward_gate) + static_cast<int>(comparator_selftest)
+            + static_cast<int>(!invalid_input_case.empty())
+        > 1) {
+        std::printf("select only one test suite\n");
         return 2;
     }
     if (comparator_selftest) {
         return RunComparatorSelftest();
     }
-
-    // S03：受控失败路径测试。只调用既有 CheckSyncResult 的伪返回码，不把任何 queue 交给 CNRT，
-    // 也不触发真实设备故障。父脚本按"唯一标识 + 预期终止 + 无后续标记"判定。
-    if (!status_test.empty()) {
-        // S03: controlled failure-path test. Calls the existing CheckSyncResult with a fabricated
-        // return code only; no queue is handed to CNRT and no real device fault is provoked.
-        if (status_test == "success") {
-            std::cout << "STATUS_TEST_BEGIN success" << std::endl;
-            infini_train::core::mlu::CheckSyncResult(cnrtSuccess, "debug-status-test-success");
-            std::cout << "STATUS_TEST_END success (continued as expected)" << std::endl;
-            return 0;
-        }
-        if (status_test == "failure") {
-            std::cout << "STATUS_TEST_BEGIN failure" << std::endl;
-            std::cout << "STATUS_TEST_ABORT_MARKER fake-cnrt-failure-632015" << std::endl;
-            std::fflush(stdout);
-            infini_train::core::mlu::CheckSyncResult(static_cast<cnrtRet_t>(632015), "debug-status-test-failure");
-            std::cout << "STATUS_TEST_AFTER_FATAL should-not-appear" << std::endl;
-            return 0;
-        }
-        std::cout << "unknown --debug-status-test value: " << status_test << std::endl;
-        return 2;
+    if (!invalid_input_case.empty()) {
+        return RunInvalidInputCase(invalid_input_case);
     }
 
     infini_train::backends::mlu::RegisterBackend();
     std::printf("op_test: device=%d inject_finite=%d inject_nan=%d\n", g_device, static_cast<int>(g_inject_finite),
                 static_cast<int>(g_inject_nan));
 
-    if (softmax_backward_gate || softmax_backward_probe) {
-        return bf16_gate::RunSoftmaxBackwardGate(softmax_backward_probe);
+    if (softmax_backward_gate) {
+        return bf16_gate::RunSoftmaxBackwardGate();
     }
     if (linear_backward_gate) {
         return bf16_gate::RunLinearBackwardGate();
     }
 
-    if (!probe_case.empty()) {
-        return RunProbeCase(probe_case);
-    }
-
-    // BF16 公式级门禁（独立开关，不影响默认套件与 --backward-group）
+    // BF16 tests use host conversion helpers and analytic references, not the cast kernel under test.
+    // Mixed-dtype accumulation must reject explicitly rather than corrupting or skipping updates.
     if (bf16_gate) {
         return bf16_gate::RunBf16Gate();
     }
 
-    // 关键反向 group（默认套件保持不动，只有显式传参才跑）
+    // Run the backward suite only when explicitly requested.
     if (!g_backward_group.empty()) {
         const bool run_a = g_backward_group == "a" || g_backward_group == "all";
         const bool run_b = g_backward_group == "b" || g_backward_group == "all";
@@ -1762,5 +1629,5 @@ int main(int argc, char **argv) {
     TestTranspose(1, 2, 4, 8);
 
     std::printf("RESULT: %s\n", g_failed ? "FAIL" : "PASS");
-    return g_failed ? 1 : 0; // 注入模式下同样如实返回非 0，由外层脚本检查预期退出码
+    return g_failed ? 1 : 0; // Injected faults must also return a failure.
 }

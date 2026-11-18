@@ -27,7 +27,7 @@ endif()
 set(MLU_ARCH "" CACHE STRING "BANG C target arch, for example mtp_592")
 
 option(INFINITRAIN_MLU_BUILD_TEST_TOOLS
-  "Build the MLU operator and device-math regression tools" ON)
+  "Build the MLU operator regression tools" ON)
 
 # ------------------------------------------------------------------------------
 # Runtime, registration entry and kernel host integration (host compiler)
@@ -62,6 +62,8 @@ target_include_directories(infini_train_mlu
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${INFINITRAIN_SOURCE_DIR}"
+)
+target_include_directories(infini_train_mlu SYSTEM PRIVATE
     "${NEUWARE_HOME}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/bang_host"
 )

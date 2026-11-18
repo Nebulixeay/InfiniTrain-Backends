@@ -1,8 +1,4 @@
-// 纯 BANG C kernel + 启动器（cncc 编译，只允许 C++11 级别语法，不含框架头）。
-// 框架集成见同目录 layernorm.cc。
-// 语义对应上游 src/kernels/cuda/layernorm.cu。
-// 简化策略（正确性优先，性能属任务三）：前向与 input-grad 一轮（一个 token/row）只由一个
-// task 完成，行内归约串行、FP32 累加、顺序确定；不引入跨核 SRAM block reduce。
+// BANG C device kernels; host/framework integration is in the matching .cc file.
 
 #include <stdint.h>
 
@@ -15,25 +11,8 @@ using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
 
-// 注意（实测）：本工具链下 taskIdX/coreId/taskDimX/coreDim 与预期语义不符，配合
-// cnrtFuncTypeUnion1 时循环写 GDRAM 只有首尾元素落盘。厂商示例（samples/BANG/.../
-// vectoradd/0_scalarAdd_single_core）用的是纯串行循环 + cnrtFuncTypeBlock。
-// 因此历史上所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
-
-// 并行度：本工具链下 dim.x*dim.y*dim.z 是
-// 本次启动占用的 MLU core 数，taskDim = core 数 / 每个 task 占用的 core 数（cnrtFuncTypeBlock
-// 为 1，cnrt.h:160-182），taskId ∈ [0, taskDim) 且各 task 唯一。因此按 token(行) = taskId、
-// 步长 taskDim 分片，输出 y/gi 每元素与 mean/rstd 每个槽恰被一个 task 写一次，无需跨 task 同步。
-// 依据：samples/BANG/0_Concepts_and_Techniques/global_var（cnrtFuncTypeBlock + dim={4,4,1}，
-// 用 taskId 索引 16 个 __mlu_device__ 全局量并逐槽自校验 PASSED）、1_Performance/vectoradd
-// 与 1_Performance/matmul 的 taskId/taskDim 切分范式。
-// 归约边界：只切 token，不切 embed_dim —— 单行的 sum/sqsum 与 dnorm_mean/dnorm_norm_mean
-// 仍在该 task 内串行完成，顺序与单任务版逐字相同，故结果与单任务版逐位相同。
-// ParameterGrad 例外：它的归约轴就是 token（每个 feature 需对全部 token 求和），按 token 分片
-// 会产生跨 task 的部分和覆盖写，故保持单 task，见 LayerNormParameterGradKernel 上方注释。
-// 历史记录（保留）：上文的“单任务串行”结论源于 cnrtFuncTypeUnion1 + 错误 dim 与
-// “taskIdX*coreDim+coreId” 索引公式的误判，不是对多任务并行的否定；重新核对见
-// See the kernel implementation and public regression tests for this behavior.
+// Partition independent elements or rows using taskId and taskDim.
+// Each output has one writer; reductions stay within a task in their original order.
 
 template <typename T>
 __mlu_global__ void LayerNormForwardKernel(const T *input, const T *weight, const T *bias, float *mean_out,
@@ -119,9 +98,9 @@ __mlu_global__ void LayerNormParameterGradKernel(const T *input, const T *grad_o
     }
 }
 
-// 启动配置：Block + {4,4,1} = 16 core / 16 task（厂商 global_var 示例同形，K-001 §4）。
+// Block launch; taskId/taskDim partition the independent work.
 const cnrtDim3_t kDim = {4, 4, 1};
-// ParameterGrad 的归约轴是 token，只能单 task（见该 kernel 上方 017 说明）。
+// Keep parameter gradients in one task because their reduction axis spans tokens.
 const cnrtDim3_t kSingleTaskDim = {1, 1, 1};
 
 template <typename T>

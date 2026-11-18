@@ -1,18 +1,19 @@
-// 对应上游 src/kernels/cuda/softmax.cu 的 host 集成部分；设备 kernel 在 softmax.mlu。
-
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "glog/logging.h"
+#include <cnrt.h>
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/datatype.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/tensor.h"
 
 #include "kernels/mlu_kernel_api.h"
-#include "runtime/mlu_debug.h"
 #include "runtime/mlu_dispatch.h"
 #include "runtime/mlu_runtime_common.h"
 
@@ -53,8 +54,6 @@ std::shared_ptr<Tensor> SoftmaxForward(const std::shared_ptr<Tensor> &input, int
         [=]<typename T>() {
             SoftmaxForwardLaunch(output->DataPtr(), input->DataPtr(), outer_size, axis_size, inner_size,
                                  MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "SoftmaxForward");
-            ::infini_train::core::mlu::DebugCheck<T>(output, "SoftmaxForward");
         },
         "MLU SoftmaxForward");
     return output;
@@ -87,7 +86,6 @@ std::shared_ptr<Tensor> SoftmaxBackward(const std::shared_ptr<Tensor> &grad_outp
         [=]<typename T>() {
             SoftmaxBackwardLaunch(grad_input->DataPtr(), grad_output_promoted->DataPtr(), output_promoted->DataPtr(),
                                   outer_size, axis_size, inner_size, MluTypeTag<T>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "SoftmaxBackward");
         },
         "MLU SoftmaxBackward");
     return grad_input;

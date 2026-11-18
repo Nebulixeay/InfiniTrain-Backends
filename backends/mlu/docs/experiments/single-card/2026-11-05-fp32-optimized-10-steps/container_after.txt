@@ -1,6 +1,0 @@
-=== container post-run checks ===
-2026-11-05 19:36:43 +0800
-=== residual processes ===
-=== core/cndump (stage,home) ===
-=== train.log lines ===
-2514 /home/xuyunfei/verify024_024-implement-v3-p1-g14-20261105/inputs025/train.log

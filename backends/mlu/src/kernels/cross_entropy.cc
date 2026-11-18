@@ -1,21 +1,21 @@
-// 对应上游 src/kernels/cuda/cross_entropy.cu 的 host 集成部分；设备 kernel 在 cross_entropy.mlu。
-// 与 CUDA 版一致：kernel 只算每样本 loss，批均值在 host 侧 FP64 累加（含 D2H/H2D）。
-
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <numeric>
 #include <vector>
 
 #include "glog/logging.h"
+#include <cnrt.h>
 
 #include "infini_train/include/core/runtime/device_guard.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
 #include "infini_train/include/datatype.h"
 #include "infini_train/include/device.h"
 #include "infini_train/include/dispatcher.h"
+#include "infini_train/include/dtype_dispatch.h"
 #include "infini_train/include/tensor.h"
 
 #include "kernels/mlu_kernel_api.h"
-#include "runtime/mlu_debug.h"
 #include "runtime/mlu_dispatch.h"
 #include "runtime/mlu_runtime_common.h"
 
@@ -44,12 +44,8 @@ std::shared_ptr<Tensor> CrossEntropyForward(const std::shared_ptr<Tensor> &input
         [=]<typename Ttarget, typename Tinput>() {
             CrossEntropyForwardLaunch(input->DataPtr(), target->DataPtr(), batched_output->DataPtr(), bs, num_classes,
                                       MluTypeTag<Ttarget>(), MluTypeTag<Tinput>(), queue);
-            // 探针放在 Launch 之后、第一次 To(Device())（含 D2H）之前；
-            // 原先写在 return 之后属死代码，导致这个最重的 kernel 从未被覆盖。
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "CrossEntropyForward");
-            ::infini_train::core::mlu::DebugCheck<Tinput>(batched_output, "CrossEntropyForward");
 
-            // 与 CUDA 版一致：host 侧 FP64 累加求均值（含 D2H/H2D 同步）
+            // Average losses in host FP64, matching CUDA.
             auto loss_cpu = batched_output->To(Device());
             auto loss = std::make_shared<Tensor>(std::vector<int64_t>{}, input->Dtype(), Device());
             const auto *loss_cpu_ptr = static_cast<const Tinput *>(loss_cpu.DataPtr());
@@ -84,7 +80,6 @@ std::shared_ptr<Tensor> CrossEntropyBackward(const std::shared_ptr<Tensor> &inpu
             CrossEntropyBackwardLaunch(input_casted->DataPtr(), grad_input->DataPtr(), target->DataPtr(),
                                        grad_output->DataPtr(), bs, num_classes, MluTypeTag<Ttarget>(),
                                        MluTypeTag<Tinput>(), queue);
-            ::infini_train::core::mlu::DebugSyncQueue(queue, "CrossEntropyBackward");
         },
         "MLU CrossEntropyBackward");
     return {grad_input};

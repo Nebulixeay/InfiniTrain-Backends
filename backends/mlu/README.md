@@ -63,7 +63,7 @@ tools instead.
 ## Run
 
 ```bash
-GLOG_logtostderr=1 OMP_NUM_THREADS=192 MLU_LINEAR_PROFILE=1 ./build-mlu/gpt2 \
+GLOG_logtostderr=1 OMP_NUM_THREADS=192 ./build-mlu/gpt2 \
   --device mlu \
   --input_bin <DATA>/tiny_shakespeare_train.bin \
   --llmc_filepath <WEIGHTS>/gpt2_124M.bin \
@@ -78,26 +78,21 @@ GLOG_logtostderr=1 OMP_NUM_THREADS=192 MLU_LINEAR_PROFILE=1 ./build-mlu/gpt2 \
 This configuration completed ten steps on 2026-11-17. The measured FP32 regression changes
 only `--dtype float32 --num_iteration 1`; historical FP32 ten-step runs are indexed separately.
 
-## Regression tools
+## Regression tests
 
 ```bash
-./build-mlu/op_test                              # operator vs CPU comparison (device test)
-./build-mlu/op_test --linear-backward-gate         # mixed-dtype Linear/Matmul backward
-./build-mlu/op_test --softmax-backward-gate        # mixed-dtype Softmax backward
-./build-mlu/op_test --inject-finite               # negative check: the comparator must fail
-./build-mlu/op_test --debug-status-test failure    # controlled fatal path (no device fault)
-cd backends/mlu/tests/math_selftest && bash build_and_run.sh  # device math functions (this cwd)
+OMP_NUM_THREADS=4 ./build-mlu/op_test
+OMP_NUM_THREADS=4 ./build-mlu/op_test --backward-group all
+OMP_NUM_THREADS=4 ./build-mlu/op_test --linear-backward-gate
+OMP_NUM_THREADS=4 ./build-mlu/op_test --softmax-backward-gate
+./build-mlu/op_test --comparator-selftest  # host-only comparator checks
 ```
 
-`tests/math_selftest` has no framework dependency: it compiles its own `.mlu` with `cncc` and
-the host part with `g++`, so it runs outside the CMake build.
+`--inject-finite` and `--inject-nan` are comparator negative tests: each must return
+a nonzero status. `--bf16-gate` checks Cast, Linear and mixed-type addition, then
+intentionally submits mismatched gradient accumulation; its expected outcome is an
+explicit dtype rejection after the preceding checks pass. It is not a normal success test.
+`--invalid-input-case slice-zero-step` and `--invalid-input-case layernorm-mixed-dtype`
+likewise must abort with their respective validation errors before accessing an MLU queue.
 
-## Debug switches
-
-| Variable | Effect |
-|---|---|
-| `MLU_DEBUG_SYNC=1` | synchronize the queue after every kernel launch and log its name; an SDK failure aborts the process |
-| `MLU_DEBUG_CHECK=1` | copy back a sample of every kernel output and log dtype / sampled count / non-finite count / min / max |
-
-Both parse `0`/`1`; unset or `0` disables them. They add synchronization and must be off for
-any timing or acceptance run.
+See [validation](docs/validation.md) for measured results and current limitations.

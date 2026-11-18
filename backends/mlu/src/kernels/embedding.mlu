@@ -1,6 +1,4 @@
-// 纯 BANG C kernel + 启动器（cncc 编译，只允许 C++11 级别语法，不含框架头）。
-// 框架集成见同目录 embedding.cc。
-// 语义对应上游 src/kernels/cuda/embedding.cu。
+// BANG C device kernels; host/framework integration is in the matching .cc file.
 
 #include <stdint.h>
 
@@ -12,11 +10,6 @@ namespace {
 using infini_train::kernels::mlu::MluScalarType;
 
 constexpr uint32_t kDefaultTaskCount = 4;
-
-// 注意（实测）：本工具链下 taskIdX/coreId/taskDimX/coreDim 与预期语义不符，配合
-// cnrtFuncTypeUnion1 时循环写 GDRAM 只有首尾元素落盘。厂商示例（samples/BANG/.../
-// vectoradd/0_scalarAdd_single_core）用的是纯串行循环 + cnrtFuncTypeBlock。
-// 因此所有 kernel 统一改为单任务串行；性能优化属任务三，届时再按官方多核范式改写。
 
 template <typename T>
 __mlu_global__ void EmbeddingForwardKernel(const int64_t *input, T *output, const T *weight, int64_t num_tokens,
@@ -37,13 +30,9 @@ __mlu_global__ void EmbeddingForwardKernel(const int64_t *input, T *output, cons
 template <typename T>
 __mlu_global__ void EmbeddingBackwardKernel(const int64_t *input, const T *grad_output, T *grad_weight,
                                             int64_t num_tokens, int64_t embed_dim, int64_t vocab_size) {
-    // 不用 __bang_atomic_add：其参数语义（dst/src1/src2 指针含义、是否要求 NRAM 侧
-    // 指针）在 MLU590 上实测会触发队列错误（CN_INVOKE_ERROR）。
-    // 改为"一个核负责若干词表行，串行扫所有 token"：每行只有一个写者，无需原子；
-    // 累加顺序按 token 升序，结果确定、可复现（精度优先，性能属任务三）。
-    // TODO(BF16-MUST-FIX): 当前内层把 float 结果立即写回 T，FP32 下无损，
-    // 但 BF16/FP16 会逐 token 舍入，不能称为“FP32 中间累加”。BF16 阶段必须改为
-    // 块内 float 累加、最后一次转换。
+    // One writer per vocabulary row scans tokens in order; no atomic updates are used.
+    // TODO: Half/BF16 currently round after each token addition. Use a float accumulator
+    // with a single final conversion before claiming FP32 accumulation for these dtypes.
     for (int64_t row = 0; row < vocab_size; ++row) {
         T *dst = grad_weight + row * embed_dim;
         for (int64_t t = 0; t < num_tokens; ++t) {

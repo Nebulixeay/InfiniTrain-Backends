@@ -1,5 +1,0 @@
-2026-11-17T10:43:19+08:00
-argv=/home/xuyunfei/verify045_maca_backward_20261117/bdir/op_test --device 0 --linear-backward-gate
-OMP_NUM_THREADS=4
-8f166581d54738f8be0c19afe182caf310eec0a33e7cb11c926f5dc7043cdfa4  /home/xuyunfei/verify045_maca_backward_20261117/bdir/op_test
-1826f5c480c259b98daf84af77bbde9e73b44d94907867941db82790b0b8d2e4  /home/xuyunfei/verify045_maca_backward_20261117/bdir/gpt2
