@@ -85,6 +85,7 @@ OMP_NUM_THREADS=4 ./build-mlu/op_test
 OMP_NUM_THREADS=4 ./build-mlu/op_test --backward-group all
 OMP_NUM_THREADS=4 ./build-mlu/op_test --linear-backward-gate
 OMP_NUM_THREADS=4 ./build-mlu/op_test --softmax-backward-gate
+OMP_NUM_THREADS=4 ./build-mlu/op_test --cast-gate
 ./build-mlu/op_test --comparator-selftest  # host-only comparator checks
 ```
 

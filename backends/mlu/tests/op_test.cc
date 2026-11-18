@@ -1047,8 +1047,8 @@ std::vector<float> RoundVec(const std::vector<float> &v) {
     return out;
 }
 
-bool TestCast() {
-    const int64_t n = 64;
+bool TestCast(int64_t n = 64) {
+    std::printf("[cast] elements=%lld\n", static_cast<long long>(n));
     std::vector<float> src(static_cast<size_t>(n));
     for (int64_t i = 0; i < n; ++i) {
         switch (static_cast<int>(i % 8)) {
@@ -1110,6 +1110,59 @@ bool TestCast() {
     ok = BwdCompare("bf16 gate cast bf16->fp32 exact", exp_back, back_host, 0.0) && ok;
     LogBackwardCaseSync("bf16 gate cast");
     return ok;
+}
+
+bool TestCastBitPatterns() {
+    constexpr int64_t count = 65536;
+    const uint32_t low_bits[] = {0, 1, 0x7fff, 0x8000, 0x8001, 0xffff};
+    std::vector<float> source(count * 6);
+    for (int64_t hi = 0; hi < count; ++hi) {
+        for (int64_t lo = 0; lo < 6; ++lo) {
+            const uint32_t bits = (static_cast<uint32_t>(hi) << 16) | low_bits[lo];
+            std::memcpy(&source[hi * 6 + lo], &bits, sizeof(bits));
+        }
+    }
+    infini_train::core::DeviceGuard guard(Mlu());
+    auto kernel = infini_train::Dispatcher::Instance().GetKernel({kMLU, "Cast"});
+    auto input = MakeTensor({count * 6}, source, Mlu());
+    const auto reduced = kernel.Call<std::shared_ptr<Tensor>>(input, DataType::kBFLOAT16);
+    const auto result = ToHostBf16Bits(reduced);
+    size_t bad = 0;
+    for (size_t i = 0; i < source.size(); ++i) {
+        if (std::isnan(source[i])) {
+            bad += (result[i] & 0x7f80u) != 0x7f80u || (result[i] & 0x7fu) == 0;
+        } else {
+            bad += result[i] != infini_train::detail::FloatToBf16Bits(source[i]);
+        }
+    }
+    // Construct every BF16 representation directly, independent of the FP32->BF16 kernel.
+    std::vector<uint16_t> bits(count);
+    for (int64_t i = 0; i < count; ++i) { bits[i] = static_cast<uint16_t>(i); }
+    auto bf = std::make_shared<Tensor>(std::vector<int64_t>{count}, DataType::kBFLOAT16, Mlu());
+    infini_train::core::GetDeviceGuardImpl(kMLU)->Memcpy(bf->DataPtr(), bits.data(), bits.size() * sizeof(uint16_t),
+                                                         infini_train::core::MemcpyKind::kH2D);
+    const auto expanded = ToHost(kernel.Call<std::shared_ptr<Tensor>>(bf, DataType::kFLOAT32));
+    for (size_t i = 0; i < bits.size(); ++i) {
+        if ((bits[i] & 0x7f80u) == 0x7f80u && (bits[i] & 0x7fu) != 0) {
+            bad += !std::isnan(expanded[i]);
+        } else {
+            uint32_t actual = 0;
+            std::memcpy(&actual, &expanded[i], sizeof(actual));
+            bad += actual != (static_cast<uint32_t>(bits[i]) << 16);
+        }
+    }
+    std::printf("Cast rounding/zeros/subnormals/Inf/NaN: %s bad=%zu\n", bad == 0 ? "PASS" : "FAIL", bad);
+    return bad == 0;
+}
+
+int RunCastGate() {
+    bool ok = TestCastBitPatterns();
+    // Cover scalar fallback, tile edges, all launch tasks, and GPT-2 activation/weight sizes.
+    for (const int64_t n : {1, 64, 8191, 8192, 8193, 131071, 131072, 131073, 196608, 2359296}) {
+        ok = TestCast(n) && ok;
+    }
+    std::printf("RESULT: %s\n", ok && !g_failed ? "PASS" : "FAIL");
+    return ok && !g_failed ? 0 : 1;
 }
 
 // Linear BF16 forward output stays BF16; backward outputs match MACA FP32 storage.
@@ -1522,6 +1575,7 @@ int main(int argc, char **argv) {
     bool comparator_selftest = false;
     bool backward_group_given = false;
     bool bf16_gate = false;
+    bool cast_gate = false;
     bool linear_backward_gate = false;
     bool softmax_backward_gate = false;
     std::string invalid_input_case;
@@ -1538,6 +1592,8 @@ int main(int argc, char **argv) {
             softmax_backward_gate = true;
         } else if (arg == "--linear-backward-gate") {
             linear_backward_gate = true;
+        } else if (arg == "--cast-gate") {
+            cast_gate = true;
         } else if (arg == "--bf16-gate") {
             bf16_gate = true;
         } else if (arg == "--inject-finite") {
@@ -1565,7 +1621,7 @@ int main(int argc, char **argv) {
     }
     if (static_cast<int>(backward_group_given) + static_cast<int>(bf16_gate) + static_cast<int>(linear_backward_gate)
             + static_cast<int>(softmax_backward_gate) + static_cast<int>(comparator_selftest)
-            + static_cast<int>(!invalid_input_case.empty())
+            + static_cast<int>(!invalid_input_case.empty()) + static_cast<int>(cast_gate)
         > 1) {
         std::printf("select only one test suite\n");
         return 2;
@@ -1581,6 +1637,9 @@ int main(int argc, char **argv) {
     std::printf("op_test: device=%d inject_finite=%d inject_nan=%d\n", g_device, static_cast<int>(g_inject_finite),
                 static_cast<int>(g_inject_nan));
 
+    if (cast_gate) {
+        return bf16_gate::RunCastGate();
+    }
     if (softmax_backward_gate) {
         return bf16_gate::RunSoftmaxBackwardGate();
     }

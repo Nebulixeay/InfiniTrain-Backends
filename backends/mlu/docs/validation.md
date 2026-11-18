@@ -72,6 +72,38 @@ The LLVM checks use a separate real MLU CMake configuration with Clang 18, GCC 1
 standard library and LLVM OpenMP; the provider also compiled in that configuration.
 The device sources are covered by cncc, not the host-only static analysis.
 
+## Cast optimization validation (2026-11-18)
+
+FP32/BF16 casts now use 8192-element NRAM tiles and vector conversion, with the same
+round-to-nearest rule as the scalar conversion. Partial vector tails, small tensors
+and other dtype pairs retain scalar handling. Autocast and gradient dtype policies
+are unchanged.
+
+An adjacent pair of single-card BF16 runs compared baseline `9f2b086` with this Cast
+change. Both used the configuration below with `--num_iteration 1`, the same inputs,
+MLU590-M9 and `OMP_NUM_THREADS=192`, without profiling or debug probes.
+
+| Measurement | Baseline | Tiled/vector Cast |
+|---|---:|---:|
+| Complete process time, including initialization and device-update teardown | 925.649 s | 727.152 s |
+| Forward phase | 439.797 s | 315.316 s |
+| Loss phase | 39.586 s | 29.276 s |
+| Backward phase | 420.671 s | 357.351 s |
+| Training loss | 5.314695 | 5.314695 |
+| Exit code | 0 | 0 |
+
+The complete process took **21.44% less time** (198.497 s saved, 1.273x speedup).
+This is one pair of cold-start steps, not a steady-state throughput benchmark or a
+new ten-step validation. Phase times exclude initialization and asynchronous update
+teardown; those are included in complete process time.
+
+The real SDK build, Cast regression and mixed-dtype Linear/Matmul and Softmax checks
+passed. `op_test --cast-gate` covers rounding boundaries, signed zero, subnormals,
+Inf/NaN, every BF16 representation and tile/task boundaries. An additional direct
+old/new-device comparison checked bitwise equality and output guards up to 38,597,376
+elements. Eight warmup-plus-three-sample Cast timing cases all improved; their local
+speedups must not be interpreted as whole-training speedups.
+
 ## Reproduce
 
 Build from the repository root using the [backend instructions](../README.md).
