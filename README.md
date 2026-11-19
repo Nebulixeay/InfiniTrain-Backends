@@ -118,10 +118,11 @@ clang-tidy and IWYU setup, scope and manual usage (in Chinese).
 ## Cambricon MLU provider (work in progress)
 
 `backends/mlu` registers a `PrivateUse1` backend named `mlu` for Cambricon MLU
-devices. The current BF16 single-card configuration completed ten training steps,
-and an FP32 single-step regression matches the historical MLU first step. Operator
-regressions, full training logs and separately labelled historical ten-step results
-are available in the validation documentation below.
+devices. The November 17 BF16 single-card implementation completed ten training steps,
+and its FP32 single-step regression matches the historical MLU first step. The
+subsequent Cast optimization passed a complete BF16 single-step comparison; it has
+not been validated with a new ten-step run. Operator regressions and separately
+labelled training results are available in the validation documentation below.
 
 ```bash
 cmake -S . -B build-mlu -G Ninja \

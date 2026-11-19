@@ -107,9 +107,9 @@ clang-format、clang-tidy 和 IWYU 的范围、依赖及手动使用方式见
 
 ## 寒武纪 MLU 后端（开发中）
 
-`backends/mlu` 通过 `PrivateUse1` 注册名为 `mlu` 的后端。当前 BF16 单卡配置已完成
-十步训练，FP32 单步回归与历史 MLU 首步一致。算子回归、完整训练日志及单独标注版本的
-历史十步结果见下方验证文档。
+`backends/mlu` 通过 `PrivateUse1` 注册名为 `mlu` 的后端。11月17日的 BF16 单卡实现
+已完成十步训练，其 FP32 单步回归与历史 MLU 首步一致。后续 Cast 优化通过了完整 BF16
+单步对照，尚未重新验证十步。算子回归及单独标注版本的训练结果见下方验证文档。
 
 ```bash
 cmake -S . -B build-mlu -G Ninja \

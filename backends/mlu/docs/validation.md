@@ -79,8 +79,8 @@ round-to-nearest rule as the scalar conversion. Partial vector tails, small tens
 and other dtype pairs retain scalar handling. Autocast and gradient dtype policies
 are unchanged.
 
-An adjacent pair of single-card BF16 runs compared baseline `9f2b086` with this Cast
-change. Both used the configuration below with `--num_iteration 1`, the same inputs,
+An adjacent pair of single-card BF16 runs compared baseline `9f2b086` with the Cast
+implementation committed as `5ef0289`. Both used the configuration below with `--num_iteration 1`, the same inputs,
 MLU590-M9 and `OMP_NUM_THREADS=192`, without profiling or debug probes.
 
 | Measurement | Baseline | Tiled/vector Cast |

@@ -1,8 +1,9 @@
 # MLU backend (Cambricon)
 
 `backends/mlu` registers a `PrivateUse1` backend named `mlu` for Cambricon MLU devices. It is a
-single-card integration with measured BF16 ten-step training and an FP32 single-step regression.
-See [`docs/validation.md`](docs/validation.md) for the design, commands and original evidence.
+single-card integration. The November 17 implementation completed BF16 ten-step training
+and an FP32 single-step regression; the subsequent Cast optimization was validated with
+a complete BF16 single-step comparison, not a new ten-step run. See [`docs/validation.md`](docs/validation.md) for the design, commands and original evidence.
 
 ## Architecture in one paragraph
 
@@ -75,8 +76,10 @@ GLOG_logtostderr=1 OMP_NUM_THREADS=192 ./build-mlu/gpt2 \
 `GLOG_logtostderr=1` is required to see the step logs: glog otherwise writes them to
 `/tmp/gpt2.*.INFO.*`.
 
-This configuration completed ten steps on 2026-11-17. The measured FP32 regression changes
-only `--dtype float32 --num_iteration 1`; historical FP32 ten-step runs are indexed separately.
+The November 17 implementation completed ten steps with this configuration. The measured
+FP32 regression changes only `--dtype float32 --num_iteration 1`; historical FP32 ten-step
+runs are indexed separately. To reproduce the November 18 Cast comparison, use
+`--num_iteration 1` with BF16; that optimization has not been validated with a new ten-step run.
 
 ## Regression tests
 
