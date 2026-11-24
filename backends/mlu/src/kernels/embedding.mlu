@@ -33,7 +33,7 @@ __mlu_global__ void EmbeddingBackwardKernel(const int64_t *input, const T *grad_
     // One writer per vocabulary row scans tokens in order; no atomic updates are used.
     // TODO: Half/BF16 currently round after each token addition. Use a float accumulator
     // with a single final conversion before claiming FP32 accumulation for these dtypes.
-    for (int64_t row = 0; row < vocab_size; ++row) {
+    for (int64_t row = taskId; row < vocab_size; row += taskDim) {
         T *dst = grad_weight + row * embed_dim;
         for (int64_t t = 0; t < num_tokens; ++t) {
             if (input[t] != row) {
@@ -59,7 +59,7 @@ void EmbeddingForwardTyped(const void *input, void *output, const void *weight, 
 template <typename T>
 void EmbeddingBackwardTyped(const void *input, const void *grad_output, void *grad_weight, int64_t num_tokens,
                             int64_t embed_dim, int64_t vocab_size, cnrtQueue_t queue) {
-    const cnrtDim3_t dim = {1, 1, 1};
+    const cnrtDim3_t dim = sizeof(T) == sizeof(float) && vocab_size >= 48 ? cnrtDim3_t{4, 12, 1} : cnrtDim3_t{1, 1, 1};
     EmbeddingBackwardKernel<T>
         <<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<const int64_t *>(input), static_cast<const T *>(grad_output),
                                             static_cast<T *>(grad_weight), num_tokens, embed_dim, vocab_size);

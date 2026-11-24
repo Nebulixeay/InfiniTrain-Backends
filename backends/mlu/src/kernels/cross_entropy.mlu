@@ -1,6 +1,7 @@
 // BANG C device kernels; host/framework integration is in the matching .cc file.
 
 #include <stdint.h>
+#include <type_traits>
 
 #include <bang.h>
 
@@ -90,15 +91,20 @@ const cnrtDim3_t kDim = {4, 4, 1};
 template <typename Ttarget, typename Tinput>
 void CrossEntropyForwardTyped(const void *input, const void *target, void *loss, int64_t bs, int64_t num_classes,
                               cnrtQueue_t queue) {
-    CrossEntropyForwardKernel<Ttarget, Tinput>
-        <<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<const Tinput *>(input), static_cast<const Ttarget *>(target),
-                                             static_cast<Tinput *>(loss), bs, num_classes);
+    // Assign independent token rows to more tasks; preserve each row's reduction order.
+    const bool wide = std::is_same<Tinput, float>::value && std::is_same<Ttarget, int64_t>::value && bs >= 48
+                   && num_classes >= 8192;
+    const cnrtDim3_t forward_dim = wide ? cnrtDim3_t{4, 12, 1} : kDim;
+    CrossEntropyForwardKernel<Ttarget, Tinput><<<forward_dim, cnrtFuncTypeBlock, queue>>>(
+        static_cast<const Tinput *>(input), static_cast<const Ttarget *>(target), static_cast<Tinput *>(loss), bs,
+        num_classes);
 }
 
 template <typename Ttarget, typename Tinput>
 void CrossEntropyBackwardTyped(const void *input, void *grad_input, const void *target, const void *grad_output,
                                int64_t bs, int64_t num_classes, cnrtQueue_t queue) {
-    CrossEntropyBackwardKernel<Ttarget, Tinput><<<kDim, cnrtFuncTypeBlock, queue>>>(
+    const cnrtDim3_t backward_dim = bs >= 48 ? cnrtDim3_t{4, 12, 1} : kDim;
+    CrossEntropyBackwardKernel<Ttarget, Tinput><<<backward_dim, cnrtFuncTypeBlock, queue>>>(
         static_cast<const Tinput *>(input), static_cast<Tinput *>(grad_input), static_cast<const Ttarget *>(target),
         static_cast<const Tinput *>(grad_output), bs, num_classes);
 }

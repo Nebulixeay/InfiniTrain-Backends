@@ -174,6 +174,60 @@ __mlu_global__ void BinaryForwardKernel(T *out, const T *a, const T *b, MluBinar
     }
 }
 
+constexpr int64_t kBinaryTile = 4096;
+
+__mlu_global__ void BinaryDenseForwardKernel(float *out, const float *a, const float *b, MluBinaryOp op, int64_t n) {
+    __nram__ float left[kBinaryTile];
+    __nram__ float right[kBinaryTile];
+    for (int64_t off = static_cast<int64_t>(taskId) * kBinaryTile; off < n;
+         off += static_cast<int64_t>(taskDim) * kBinaryTile) {
+        const int count = static_cast<int>(n - off < kBinaryTile ? n - off : kBinaryTile);
+        __memcpy(left, a + off, count * sizeof(float), GDRAM2NRAM);
+        __memcpy(right, b + off, count * sizeof(float), GDRAM2NRAM);
+        const int vec = count / 128 * 128;
+        if (vec > 0) {
+            if (op == MluBinaryOp::kAdd) {
+                __bang_add(left, left, right, vec);
+            } else {
+                __bang_mul(left, left, right, vec);
+            }
+        }
+        for (int i = vec; i < count; ++i) { left[i] = BinaryFwdEval(op, left[i], right[i]); }
+        __memcpy(out + off, left, count * sizeof(float), NRAM2GDRAM);
+    }
+}
+
+// Equal-shape add returns the incoming gradient twice. Multiply needs the
+// opposite input on each side, with the incoming gradient as the first factor.
+template <bool kMultiply>
+__mlu_global__ void DensePairGradKernel(float *ga, float *gb, const float *grad, const float *a, const float *b,
+                                        int64_t n) {
+    __nram__ float g[kBinaryTile], other[kBinaryTile];
+    for (int64_t off = static_cast<int64_t>(taskId) * kBinaryTile; off < n;
+         off += static_cast<int64_t>(taskDim) * kBinaryTile) {
+        const int count = n - off < kBinaryTile ? static_cast<int>(n - off) : kBinaryTile;
+        __memcpy(g, grad + off, count * sizeof(float), GDRAM2NRAM);
+        if constexpr (kMultiply) {
+            const int vec = count / 128 * 128;
+            __memcpy(other, b + off, count * sizeof(float), GDRAM2NRAM);
+            if (vec) {
+                __bang_mul(other, g, other, vec);
+            }
+            for (int i = vec; i < count; ++i) { other[i] = g[i] * other[i]; }
+            __memcpy(ga + off, other, count * sizeof(float), NRAM2GDRAM);
+            __memcpy(other, a + off, count * sizeof(float), GDRAM2NRAM);
+            if (vec) {
+                __bang_mul(other, g, other, vec);
+            }
+            for (int i = vec; i < count; ++i) { other[i] = g[i] * other[i]; }
+            __memcpy(gb + off, other, count * sizeof(float), NRAM2GDRAM);
+        } else {
+            __memcpy(ga + off, g, count * sizeof(float), NRAM2GDRAM);
+            __memcpy(gb + off, g, count * sizeof(float), NRAM2GDRAM);
+        }
+    }
+}
+
 // Equal shapes allow one direct gradient write per element.
 template <typename T>
 __mlu_global__ void BinaryBackwardNoBroadcastKernel(T *grad_a, T *grad_b, const T *grad_out, const T *a, const T *b,
@@ -185,6 +239,45 @@ __mlu_global__ void BinaryBackwardNoBroadcastKernel(T *grad_a, T *grad_b, const 
         grad_a[i] = static_cast<T>(BinaryBwdEvalA(op, g, av, bv));
         grad_b[i] = static_cast<T>(BinaryBwdEvalB(op, g, av, bv));
     }
+}
+
+// The right operand repeats as whole contiguous blocks. Assign each column to
+// one task, visiting its rows in the same order as the generic reduction.
+__mlu_global__ void AddPrefixBroadcastBackwardKernel(float *grad_a, float *grad_b, const float *grad_out, int64_t n,
+                                                     int64_t width) {
+    for (int64_t j = taskId; j < width; j += taskDim) {
+        float sum = 0.0f;
+        for (int64_t i = j; i < n; i += width) {
+            const float g = grad_out[i];
+            grad_a[i] = 0.0f + g;
+            sum += g;
+        }
+        grad_b[j] = sum;
+    }
+}
+
+bool IsContiguousPrefixBroadcast(const MluBroadcastMeta &m, int64_t a, int64_t b, int64_t n) {
+    if (m.ndim != 3 || a != n || b <= 0 || b >= a || m.b_shape[2] != m.a_shape[2]) {
+        return false;
+    }
+    bool prefix = false;
+    int64_t sa = 1, sb = 1;
+    for (int d = 2; d >= 0; --d) {
+        const int64_t x = m.a_shape[d], y = m.b_shape[d];
+        if (x <= 0 || y <= 0 || m.a_strides[d] != sa || m.out_strides[d] != sa || m.b_strides[d] != sb || x > a / sa
+            || y > b / sb) {
+            return false;
+        }
+        if (x != y) {
+            prefix = true;
+        }
+        if (prefix && y != 1) {
+            return false;
+        }
+        sa *= x;
+        sb *= y;
+    }
+    return sa == a && sb == b;
 }
 
 // For each destination gradient, gather its collapsed output coordinates in a fixed order.
@@ -267,6 +360,7 @@ template <typename T> __mlu_global__ void EqualsScalarForwardKernel(bool *out, c
 
 // Block launch; taskId/taskDim partition the independent work.
 const cnrtDim3_t kDim = {4, 4, 1};
+const cnrtDim3_t kReduceDim = {4, 12, 1};
 
 template <typename T> void UnaryForwardTyped(void *out, const void *in, MluUnaryOp op, int64_t n, cnrtQueue_t queue) {
     UnaryForwardKernel<T><<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<T *>(out), static_cast<const T *>(in), op, n);
@@ -317,10 +411,10 @@ void BinaryBackwardTyped(void *grad_a, void *grad_b, const void *grad_out, const
             static_cast<const T *>(a), static_cast<const T *>(b), op, numel_out);
         return;
     }
-    BinaryBackwardReduceKernel<T, true><<<kDim, cnrtFuncTypeBlock, queue>>>(
+    BinaryBackwardReduceKernel<T, true><<<kReduceDim, cnrtFuncTypeBlock, queue>>>(
         static_cast<T *>(grad_a), static_cast<const T *>(grad_out), static_cast<const T *>(a),
         static_cast<const T *>(b), op, meta, numel_a, numel_out);
-    BinaryBackwardReduceKernel<T, false><<<kDim, cnrtFuncTypeBlock, queue>>>(
+    BinaryBackwardReduceKernel<T, false><<<kReduceDim, cnrtFuncTypeBlock, queue>>>(
         static_cast<T *>(grad_b), static_cast<const T *>(grad_out), static_cast<const T *>(a),
         static_cast<const T *>(b), op, meta, numel_b, numel_out);
 }
@@ -439,12 +533,48 @@ void PowBackwardLaunch(void *grad_in, const void *grad_out, const void *in, floa
 
 void BinaryForwardLaunch(void *out, const void *a, const void *b, MluBinaryOp op, MluScalarType type,
                          MluBroadcastMeta meta, int64_t num_elements, cnrtQueue_t queue) {
+    if (type == MluScalarType::kF32 && num_elements >= kBinaryTile
+        && (op == MluBinaryOp::kAdd || op == MluBinaryOp::kMul)) {
+        bool dense = true;
+        for (int d = 0; d < meta.ndim; ++d) { dense = dense && meta.a_shape[d] == meta.b_shape[d]; }
+        if (dense) {
+            BinaryDenseForwardKernel<<<kDim, cnrtFuncTypeBlock, queue>>>(
+                static_cast<float *>(out), static_cast<const float *>(a), static_cast<const float *>(b), op,
+                num_elements);
+            return;
+        }
+    }
     MLU_EW_FLOAT_SWITCH(BinaryForwardTyped, out, a, b, op, meta, num_elements, queue)
 }
 
 void BinaryBackwardLaunch(void *grad_a, void *grad_b, const void *grad_out, const void *a, const void *b,
                           MluBinaryOp op, MluScalarType type, MluBroadcastMeta meta, int64_t numel_a, int64_t numel_b,
                           int64_t numel_out, cnrtQueue_t queue) {
+    if (type == MluScalarType::kF32 && numel_out >= kBinaryTile && numel_a == numel_out && numel_b == numel_out
+        && (op == MluBinaryOp::kAdd || op == MluBinaryOp::kMul)) {
+        bool dense = true;
+        for (int d = 0; d < meta.ndim; ++d) { dense = dense && meta.a_shape[d] == meta.b_shape[d]; }
+        if (dense) {
+            if (op == MluBinaryOp::kAdd) {
+                DensePairGradKernel<false><<<kReduceDim, cnrtFuncTypeBlock, queue>>>(
+                    static_cast<float *>(grad_a), static_cast<float *>(grad_b), static_cast<const float *>(grad_out),
+                    nullptr, nullptr, numel_out);
+            } else {
+                DensePairGradKernel<true><<<kReduceDim, cnrtFuncTypeBlock, queue>>>(
+                    static_cast<float *>(grad_a), static_cast<float *>(grad_b), static_cast<const float *>(grad_out),
+                    static_cast<const float *>(a), static_cast<const float *>(b), numel_out);
+            }
+            return;
+        }
+    }
+
+    if (type == MluScalarType::kF32 && op == MluBinaryOp::kAdd
+        && IsContiguousPrefixBroadcast(meta, numel_a, numel_b, numel_out)) {
+        AddPrefixBroadcastBackwardKernel<<<kReduceDim, cnrtFuncTypeBlock, queue>>>(
+            static_cast<float *>(grad_a), static_cast<float *>(grad_b), static_cast<const float *>(grad_out), numel_out,
+            numel_b);
+        return;
+    }
     MLU_EW_FLOAT_SWITCH(BinaryBackwardTyped, grad_a, grad_b, grad_out, a, b, op, meta, numel_a, numel_b, numel_out,
                         queue)
 }

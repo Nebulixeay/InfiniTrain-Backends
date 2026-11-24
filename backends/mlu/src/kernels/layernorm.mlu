@@ -76,14 +76,12 @@ __mlu_global__ void LayerNormInputGradKernel(const T *input, const T *grad_outpu
     }
 }
 
-// Reduce tokens in a deterministic order for each feature. Splitting the token
-// axis would require combining partial weight/bias gradients, so this kernel
-// retains a single task and avoids conflicting writes.
+// Each feature has one writer; sum its tokens in the original order.
 template <typename T>
 __mlu_global__ void LayerNormParameterGradKernel(const T *input, const T *grad_output, const float *mean,
                                                  const float *rstd, T *grad_weight, T *grad_bias, int64_t num_tokens,
                                                  int64_t embed_dim) {
-    for (int64_t feature = 0; feature < embed_dim; ++feature) {
+    for (int64_t feature = taskId; feature < embed_dim; feature += taskDim) {
         float gw = 0.0f;
         float gb = 0.0f;
         for (int64_t token = 0; token < num_tokens; ++token) {
@@ -100,8 +98,6 @@ __mlu_global__ void LayerNormParameterGradKernel(const T *input, const T *grad_o
 
 // Block launch; taskId/taskDim partition the independent work.
 const cnrtDim3_t kDim = {4, 4, 1};
-// Keep parameter gradients in one task because their reduction axis spans tokens.
-const cnrtDim3_t kSingleTaskDim = {1, 1, 1};
 
 template <typename T>
 void LayerNormForwardTyped(const void *input, const void *weight, const void *bias, float *mean_out, float *rstd_out,
@@ -118,7 +114,10 @@ void LayerNormBackwardTyped(const void *input, const void *grad_output, const fl
     LayerNormInputGradKernel<T><<<kDim, cnrtFuncTypeBlock, queue>>>(
         static_cast<const T *>(input), static_cast<const T *>(grad_output), mean, rstd, static_cast<const T *>(weight),
         static_cast<T *>(grad_input), num_tokens, embed_dim);
-    LayerNormParameterGradKernel<T><<<kSingleTaskDim, cnrtFuncTypeBlock, queue>>>(
+    const cnrtDim3_t param_dim = sizeof(T) == sizeof(float) && embed_dim >= 48 && num_tokens >= 32
+                                   ? cnrtDim3_t{4, 12, 1}
+                                   : cnrtDim3_t{1, 1, 1};
+    LayerNormParameterGradKernel<T><<<param_dim, cnrtFuncTypeBlock, queue>>>(
         static_cast<const T *>(input), static_cast<const T *>(grad_output), mean, rstd, static_cast<T *>(grad_weight),
         static_cast<T *>(grad_bias), num_tokens, embed_dim);
 }

@@ -61,6 +61,44 @@ __mlu_global__ void SliceForwardKernel(const T *input, T *output, MluIndexMeta m
     }
 }
 
+// A unit-step slice of the last axis is one contiguous span per input row.
+// The caller has already zeroed the destination; only write the selected span.
+constexpr int kSliceRowCapacity = 1024;
+__mlu_global__ void SliceRowGradKernel(const float *src, float *dst, int64_t rows, int64_t width, int64_t pitch,
+                                       int64_t start) {
+    __nram__ float row[kSliceRowCapacity];
+    for (int64_t r = taskId; r < rows; r += taskDim) {
+        __memcpy(row, src + r * width, width * sizeof(float), GDRAM2NRAM);
+        __memcpy(dst + r * pitch + start, row, width * sizeof(float), NRAM2GDRAM);
+    }
+}
+
+bool IsAlignedSliceRow(const MluIndexMeta &m, int64_t n) {
+    if (m.ndim != 3 || m.dims[0] <= 0 || m.dims[1] <= 0 || n <= 0) {
+        return false;
+    }
+    const auto width = m.dims[2], pitch = m.in_strides[1], start = m.starts[2];
+    if (width <= 0 || width > kSliceRowCapacity || width % 32 || pitch < width || pitch % 32 || start < 0
+        || start > pitch - width || start % 32 || n % width) {
+        return false;
+    }
+    const auto rows = n / width;
+    return rows >= 48 && rows % m.dims[1] == 0 && rows / m.dims[1] == m.dims[0] && pitch <= INT64_MAX / rows
+        && m.starts[0] == 0 && m.starts[1] == 0 && m.steps[0] == 1 && m.steps[1] == 1 && m.steps[2] == 1
+        && m.in_strides[2] == 1 && m.out_strides[2] == 1 && m.out_strides[1] == width
+        && m.out_strides[0] == m.dims[1] * width && m.in_strides[0] == m.dims[1] * pitch;
+}
+
+// Copy BF16 storage bits, including NaN payloads, without arithmetic.
+__mlu_global__ void SliceRowForwardBitsKernel(const uint16_t *src, uint16_t *dst, int64_t rows, int64_t width,
+                                              int64_t pitch, int64_t start) {
+    __nram__ uint16_t row[kSliceRowCapacity];
+    for (int64_t r = taskId; r < rows; r += taskDim) {
+        __memcpy(row, src + r * pitch + start, width * sizeof(uint16_t), GDRAM2NRAM);
+        __memcpy(dst + r * width, row, width * sizeof(uint16_t), NRAM2GDRAM);
+    }
+}
+
 // Zero grad_input on the same queue before scatter. Positive slice steps and
 // contiguous strides give unique destination indices, so no atomics are needed.
 template <typename T>
@@ -107,6 +145,41 @@ void TrilTriuTyped(const void *input, void *output, int64_t rows, int64_t cols, 
     } else {
         TrilTriuKernel<T, false><<<kDim, cnrtFuncTypeBlock, queue>>>(static_cast<const T *>(input),
                                                                      static_cast<T *>(output), rows, cols, diagonal);
+    }
+}
+
+// Adjacent middle axes leave the innermost 64 values contiguous.
+template <typename Bits>
+__mlu_global__ void TransposeRows64Kernel(const Bits *in, Bits *out, int64_t rows, int64_t x, int64_t y) {
+    __nram__ Bits row[64];
+    for (int64_t r = taskId; r < rows; r += taskDim) {
+        const int64_t src = (r / (x * y) * x + r % x) * y + r / x % y;
+        __memcpy(row, in + src * 64, sizeof(row), GDRAM2NRAM);
+        __memcpy(out + r * 64, row, sizeof(row), NRAM2GDRAM);
+    }
+}
+
+// One task owns a whole plane; all scattered accesses stay inside NRAM.
+template <typename Bits> __mlu_global__ void TransposePlane64Kernel(const Bits *in, Bits *out, int64_t planes) {
+    __nram__ Bits src[4096], dst[4096];
+    for (int64_t p = taskId; p < planes; p += taskDim) {
+        __memcpy(src, in + p * 4096, sizeof(src), GDRAM2NRAM);
+        for (int i = 0; i < 64; ++i) {
+            for (int j = 0; j < 64; ++j) { dst[i * 64 + j] = src[j * 64 + i]; }
+        }
+        __memcpy(out + p * 4096, dst, sizeof(dst), NRAM2GDRAM);
+    }
+}
+
+template <typename Bits>
+void LaunchTranspose64(const void *in, void *out, bool plane, int64_t n, int64_t x, int64_t y, cnrtQueue_t queue) {
+    const cnrtDim3_t dim = {4, 12, 1};
+    if (plane) {
+        TransposePlane64Kernel<Bits>
+            <<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<const Bits *>(in), static_cast<Bits *>(out), n / 4096);
+    } else {
+        TransposeRows64Kernel<Bits>
+            <<<dim, cnrtFuncTypeBlock, queue>>>(static_cast<const Bits *>(in), static_cast<Bits *>(out), n / 64, x, y);
     }
 }
 
@@ -208,16 +281,54 @@ void TrilTriuLaunch(const void *input, void *output, int64_t rows, int64_t cols,
 
 void TransposeLaunch(const void *input, void *output, MluIndexMeta meta, int64_t dim0, int64_t dim1,
                      int64_t num_elements, MluScalarType type, cnrtQueue_t queue) {
+    if (meta.ndim == 4 && num_elements >= 4096 && (type == MluScalarType::kF32 || type == MluScalarType::kBF16)
+        && ((reinterpret_cast<uintptr_t>(input) | reinterpret_cast<uintptr_t>(output)) % 128 == 0)) {
+        const bool middle = (dim0 == 1 && dim1 == 2) || (dim0 == 2 && dim1 == 1);
+        const bool last = (dim0 == 2 && dim1 == 3) || (dim0 == 3 && dim1 == 2);
+        // The caller constructs canonical contiguous strides for both tensors.
+        const bool rows = middle && meta.in_strides[2] == 64;
+        const bool plane = last && meta.in_strides[2] == 64 && meta.in_strides[1] == 4096;
+        if (rows || plane) {
+            const int64_t x = meta.in_strides[0] / meta.in_strides[1];
+            const int64_t y = meta.in_strides[1] / 64;
+            if (type == MluScalarType::kF32) {
+                LaunchTranspose64<uint32_t>(input, output, plane, num_elements, x, y, queue);
+            } else {
+                LaunchTranspose64<uint16_t>(input, output, plane, num_elements, x, y, queue);
+            }
+            return;
+        }
+    }
+
     MLU_TF_NUMERIC_SWITCH(TransposeTyped, input, output, meta, dim0, dim1, num_elements, queue)
 }
 
 void SliceForwardLaunch(const void *input, void *output, MluIndexMeta meta, int64_t num_elements, MluScalarType type,
                         cnrtQueue_t queue) {
+    if (type == MluScalarType::kBF16 && IsAlignedSliceRow(meta, num_elements) && meta.dims[2] % 64 == 0
+        && meta.in_strides[1] % 64 == 0 && meta.starts[2] % 64 == 0 && reinterpret_cast<uintptr_t>(input) % 128 == 0
+        && reinterpret_cast<uintptr_t>(output) % 128 == 0) {
+        const cnrtDim3_t dim = {4, 12, 1};
+        SliceRowForwardBitsKernel<<<dim, cnrtFuncTypeBlock, queue>>>(
+            static_cast<const uint16_t *>(input), static_cast<uint16_t *>(output), num_elements / meta.dims[2],
+            meta.dims[2], meta.in_strides[1], meta.starts[2]);
+        return;
+    }
+
     MLU_TF_NUMERIC_SWITCH(SliceForwardTyped, input, output, meta, num_elements, queue)
 }
 
 void SliceBackwardLaunch(const void *grad_output, void *grad_input, MluIndexMeta meta, int64_t num_elements,
                          MluScalarType type, cnrtQueue_t queue) {
+    if (type == MluScalarType::kF32 && IsAlignedSliceRow(meta, num_elements)
+        && reinterpret_cast<uintptr_t>(grad_output) % 128 == 0 && reinterpret_cast<uintptr_t>(grad_input) % 128 == 0) {
+        const cnrtDim3_t dim = {4, 12, 1};
+        SliceRowGradKernel<<<dim, cnrtFuncTypeBlock, queue>>>(
+            static_cast<const float *>(grad_output), static_cast<float *>(grad_input), num_elements / meta.dims[2],
+            meta.dims[2], meta.in_strides[1], meta.starts[2]);
+        return;
+    }
+
     MLU_TF_NUMERIC_SWITCH(SliceBackwardTyped, grad_output, grad_input, meta, num_elements, queue)
 }
 

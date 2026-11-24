@@ -399,6 +399,22 @@ void TestAddBroadcast(int64_t rows, int64_t cols) {
     Compare("Add(broadcast)", run(Cpu()), run(Mlu()), 1e-5, 1e-4);
 }
 
+void TestDenseBinaryForward() {
+    constexpr int64_t side = 257;
+    auto left = RandVec(side * side, 1.0f, 71);
+    auto right = RandVec(side * side, 1.0f, 72);
+    auto a = MakeTensor({side, side}, left, Mlu());
+    auto b = MakeTensor({side, side}, right, Mlu());
+    for (const std::string op : {"AddForward", "MulForward"}) {
+        std::vector<float> expected(left.size());
+        for (size_t i = 0; i < left.size(); ++i) {
+            expected[i] = op == "AddForward" ? left[i] + right[i] : left[i] * right[i];
+        }
+        auto output = infini_train::Dispatcher::Instance().Call<std::shared_ptr<Tensor>>({kMLU, op}, a, b);
+        Compare(op + " dense FP32 257x257", expected, ToHost(output), 0.0, 0.0);
+    }
+}
+
 void TestMulScalar(int64_t n, float s) {
     auto x = RandVec(static_cast<size_t>(n), 1.0f, 41);
     auto run = [&](Device dev) {
@@ -1684,6 +1700,7 @@ int main(int argc, char **argv) {
     TestLayerNorm(8, 16);
     TestSoftmax(8, 16);
     TestAddBroadcast(8, 16);
+    TestDenseBinaryForward();
     TestMulScalar(64, 0.5f);
     TestTranspose(1, 2, 4, 8);
 
