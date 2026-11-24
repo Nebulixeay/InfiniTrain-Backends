@@ -29,20 +29,30 @@ ten-step runs are distinct from the one-step FP32 regression of the BF16 fix.
 | 2026-11-17 | BF16, 10 steps | 10/10, finite loss, complete forward/backward, exit 0; 9248.819 s | [BF16](https://github.com/Nebulixeay/InfiniTrain-Backends/tree/4988ae053992b46f8d128c45c7f0299293b7147b/backends/mlu/docs/experiments/single-card/2026-11-17-bf16-10-steps) |
 | 2026-11-17 | FP32 regression, 1 step | Loss 5.356084, exit 0; 711.285 s | [FP32 regression](https://github.com/Nebulixeay/InfiniTrain-Backends/tree/4988ae053992b46f8d128c45c7f0299293b7147b/backends/mlu/docs/experiments/single-card/2026-11-17-fp32-1-step-regression) |
 
-| Step | Historical FP32 (2026-11-05) | BF16 fix (2026-11-17) |
-|---|---|---|
-| 1 | 5.356084 | 5.314695 |
-| 2 | 5.060423 | 5.026468 |
-| 3 | 4.860268 | 4.856012 |
-| 4 | 4.961235 | 4.939342 |
-| 5 | 4.888132 | 4.898680 |
-| 6 | 5.099115 | 5.073312 |
-| 7 | 4.860406 | 4.836881 |
-| 8 | 4.944980 | 4.883745 |
-| 9 | 5.121128 | 5.095389 |
-| 10 | 5.270833 | 5.239595 |
+| Step | Historical FP32 (2026-11-05) | BF16 fix (2026-11-17) | Optimized BF16 (2026-11-24) |
+|---|---|---|---|
+| 1 | 5.356084 | 5.314695 | 5.314702 |
+| 2 | 5.060423 | 5.026468 | 5.027808 |
+| 3 | 4.860268 | 4.856012 | 4.859548 |
+| 4 | 4.961235 | 4.939342 | 4.965302 |
+| 5 | 4.888132 | 4.898680 | 4.912581 |
+| 6 | 5.099115 | 5.073312 | 5.070765 |
+| 7 | 4.860406 | 4.836881 | 4.848380 |
+| 8 | 4.944980 | 4.883745 | 4.866330 |
+| 9 | 5.121128 | 5.095389 | 5.094228 |
+| 10 | 5.270833 | 5.239595 | 5.219737 |
 
-The two columns record separate experiments; they are not an accuracy acceptance comparison.
+The November 24 optimized kernels completed 10/10 BF16 steps on MLU590-M9 (CNNL 2.2.18),
+with finite loss throughout. Mean logged step time was **201.69 s** (34 min 03 s from launch to exit),
+versus **921.83 s** on November 17 with the same weights, data and arguments. The older run
+included Linear timing probes. This compares the cumulative changes, not the projection alone.
+The largest relative loss difference between corresponding MLU steps was **0.526%** (step 4).
+On identical real activations the vocabulary projection alone took 2.13 ms on device versus
+14.77 s on the host. The ten-step binary had SHA-256 `c0864e501ead7684454d29f89cb9555cc1e68860e4c61f2661fa89fea885f7da`.
+The review version (`6d391a7`) adds a pre-launch fallback for unsupported algorithms;
+its separately rebuilt binary reproduced step 1 (5.314702) with backward and exit 0.
+
+The columns record separate experiments; they are not an accuracy acceptance comparison.
 The old blanket BF16-to-FP32 forward-recast experiment is superseded and is not evidence
 for this implementation. The links above are pinned to the archived publication commit,
 preserving complete logs, commands and source/binary identities without carrying all
@@ -124,8 +134,7 @@ GLOG_logtostderr=1 OMP_NUM_THREADS=192 ./build-mlu/gpt2 \
 
 For the recorded FP32 regression, change `--dtype float32 --num_iteration 1`.
 The original November 17 runs enabled the now-removed Linear timing probe; the command
-above omits that probe and retains the training configuration. This is not a claim of
-a second ten-step run after cleanup.
+above omits that probe and retains the training configuration.
 
 Input SHA-256:
 
@@ -141,8 +150,9 @@ not included in this repository.
 
 ## Current limits
 
-- Linear/Matmul uses FP32 host GEMM with device-to-host and host-to-device transfers.
-  Optional CNNL support currently provides a handle, not a device GEMM implementation.
+- The CNNL fast path covers contiguous, bias-free BF16 Linear with 256 rows, 768 input
+  features and 50,257 outputs, using transposed weights and FP32 accumulation. Other
+  shapes, builds without CNNL and unsupported algorithm choices retain the host path.
 - Embedding backward rounds after each token addition for FP16/BF16 buffers; it does
   not yet accumulate an entire row in FP32 before one final conversion.
 - Device coverage is single-card. Distributed training and formal training-accuracy

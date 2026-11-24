@@ -1,9 +1,7 @@
 # MLU backend (Cambricon)
 
 `backends/mlu` registers a `PrivateUse1` backend named `mlu` for Cambricon MLU devices. It is a
-single-card integration. The November 17 implementation completed BF16 ten-step training
-and an FP32 single-step regression; the subsequent Cast optimization was validated with
-a complete BF16 single-step comparison, not a new ten-step run. See [`docs/validation.md`](docs/validation.md) for the design, commands and original evidence.
+single-card integration. The optimized BF16 path completed ten GPT-2 training steps on MLU590-M9. See [`docs/validation.md`](docs/validation.md) for the design, commands and original evidence.
 
 ## Architecture in one paragraph
 
@@ -34,9 +32,8 @@ from `src/backend.cc` (`infini_train::backends::mlu::RegisterBackend`):
 | InfiniTrain | pinned submodule `e19a56d` (upstream LayerNorm autocast-policy fix) |
 
 `CNNL` is optional at configure time: if `cnnl.h` / `libcnnl` are not found the build prints a
-warning and disables BLAS handle support. **`INFINITRAIN_MLU_WITH_CNNL=ON` currently only
-controls whether the CNNL handle is compiled in; no kernel calls CNNL yet** (GEMM still uses the
-host fallback, see [`docs/validation.md`](docs/validation.md)).
+warning and uses host GEMM. With CNNL, the supported BF16 vocabulary projection uses device
+matmul; other shapes and unsupported algorithms retain the host path.
 
 ## Build
 
@@ -76,10 +73,10 @@ GLOG_logtostderr=1 OMP_NUM_THREADS=192 ./build-mlu/gpt2 \
 `GLOG_logtostderr=1` is required to see the step logs: glog otherwise writes them to
 `/tmp/gpt2.*.INFO.*`.
 
-The November 17 implementation completed ten steps with this configuration. The measured
+The November 17 and November 24 implementations completed ten steps with this configuration. The measured
 FP32 regression changes only `--dtype float32 --num_iteration 1`; historical FP32 ten-step
 runs are indexed separately. To reproduce the November 18 Cast comparison, use
-`--num_iteration 1` with BF16; that optimization has not been validated with a new ten-step run.
+`--num_iteration 1` with BF16.
 
 ## Regression tests
 
