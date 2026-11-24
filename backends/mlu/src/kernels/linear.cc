@@ -1,6 +1,3 @@
-// Linear/Matmul use a host GEMM fallback with D2H/H2D copies.
-// Accumulation is FP32 in increasing k order; device GEMM remains future work.
-
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -17,8 +14,85 @@
 #include "infini_train/include/dispatcher.h"
 #include "infini_train/include/tensor.h"
 
+#ifdef USE_CNNL
+#include <cnnl.h>
+#include <cnrt.h>
+
+#include "common/common_mlu.h"
+#include "infini_train/include/core/runtime/runtime_common.h"
+#include "runtime/mlu_runtime_common.h"
+#endif
+
 namespace infini_train::kernels::mlu {
 namespace {
+
+#ifdef USE_CNNL
+constexpr int kProjectionRows = 256;
+constexpr int kEmbeddingWidth = 768;
+constexpr int kVocabularySize = 50257;
+
+cnnlTensorDescriptor_t MakeBf16Matrix(int rows, int columns) {
+    cnnlTensorDescriptor_t descriptor;
+    int dims[] = {rows, columns};
+    MLU_CNNL_CHECK(cnnlCreateTensorDescriptor(&descriptor));
+    MLU_CNNL_CHECK(cnnlSetTensorDescriptor(descriptor, CNNL_LAYOUT_ARRAY, CNNL_DTYPE_BFLOAT16, 2, dims));
+    return descriptor;
+}
+
+// Use the validated vocabulary projection only when CNNL offers an algorithm without extra workspace.
+bool TryVocabularyProjection(const Tensor &input, const Tensor &weight, Tensor &output) {
+    const auto device = input.GetDevice();
+    auto *stream = dynamic_cast<core::mlu::MluStream *>(core::GetDeviceGuardImpl(device.type())->GetStream(device));
+    CHECK(stream);
+    const auto queue = stream->mlu_queue();
+    cnnlHandle_t handle;
+    MLU_CNNL_CHECK(cnnlCreate(&handle));
+    MLU_CNNL_CHECK(cnnlSetQueue(handle, queue));
+    auto a = MakeBf16Matrix(kProjectionRows, kEmbeddingWidth);
+    auto b = MakeBf16Matrix(kVocabularySize, kEmbeddingWidth);
+    auto d = MakeBf16Matrix(kProjectionRows, kVocabularySize);
+    cnnlMatMulDescriptor_t operation;
+    cnnlMatMulAlgo_t algorithm;
+    cnnlMatMulHeuristicResult_t result;
+    MLU_CNNL_CHECK(cnnlCreateMatMulDescriptor(&operation));
+    MLU_CNNL_CHECK(cnnlCreateMatMulAlgo(&algorithm));
+    MLU_CNNL_CHECK(cnnlCreateMatMulHeuristicResult(&result));
+    int32_t yes = 1, no = 0;
+    auto compute = CNNL_DTYPE_FLOAT;
+    MLU_CNNL_CHECK(cnnlSetMatMulDescAttr(operation, CNNL_MATMUL_DESC_COMPUTE_TYPE, &compute, sizeof(compute)));
+    MLU_CNNL_CHECK(cnnlSetMatMulDescAttr(operation, CNNL_MATMUL_DESC_TRANSB, &yes, sizeof(yes)));
+    MLU_CNNL_CHECK(cnnlSetMatMulDescAttr(operation, CNNL_MATMUL_USE_BETA, &no, sizeof(no)));
+    MLU_CNNL_CHECK(cnnlSetMatMulDescAttr(operation, CNNL_MATMUL_ALLOW_TF32, &no, sizeof(no)));
+    int count = 0;
+    size_t workspace = 0;
+    auto query = cnnlGetMatMulAlgoHeuristic(handle, operation, a, b, d, d, nullptr, 1, &result, &count);
+    bool supported = query != CNNL_STATUS_NOT_SUPPORTED && query != CNNL_STATUS_ARCH_MISMATCH;
+    if (supported) {
+        MLU_CNNL_CHECK(query);
+        if (count == 1) {
+            MLU_CNNL_CHECK(cnnlGetMatMulHeuristicResult(result, algorithm, &workspace));
+        }
+        supported = count == 1 && workspace == 0;
+    }
+    if (supported) {
+        // CNNL requires a valid C operand even when beta is zero. Keep it alive until the queue completes.
+        Tensor scratch(output.Dims(), output.Dtype(), output.GetDevice());
+        MLU_CNRT_CHECK(cnrtMemset(scratch.DataPtr(), 0, output.NumElements() * sizeof(uint16_t)));
+        float alpha = 1, beta = 0;
+        MLU_CNNL_CHECK(cnnlMatMul_v2(handle, operation, algorithm, &alpha, a, input.DataPtr(), b, weight.DataPtr(),
+                                     &beta, d, scratch.DataPtr(), nullptr, workspace, d, output.DataPtr()));
+        MLU_CNRT_CHECK(cnrtQueueSync(queue));
+    }
+    MLU_CNNL_CHECK(cnnlDestroyMatMulHeuristicResult(result));
+    MLU_CNNL_CHECK(cnnlDestroyMatMulAlgo(algorithm));
+    MLU_CNNL_CHECK(cnnlDestroyMatMulDescriptor(operation));
+    MLU_CNNL_CHECK(cnnlDestroyTensorDescriptor(a));
+    MLU_CNNL_CHECK(cnnlDestroyTensorDescriptor(b));
+    MLU_CNNL_CHECK(cnnlDestroyTensorDescriptor(d));
+    MLU_CNNL_CHECK(cnnlDestroy(handle));
+    return supported;
+}
+#endif
 
 // Row-major storage; lda/ldb/ldc are row strides and alpha is one.
 void HostGemm(bool trans_a, bool trans_b, int64_t m, int64_t n, int64_t k, const float *a, int64_t lda, const float *b,
@@ -121,6 +195,14 @@ std::shared_ptr<Tensor> LinearForward(const std::shared_ptr<Tensor> &input, cons
     auto output = std::make_shared<Tensor>(output_dims, input->Dtype(), input->GetDevice());
 
     const int64_t rows = NumElementsOf(input_dims) / in_features;
+#ifdef USE_CNNL
+    if (transpose && !bias && rows == kProjectionRows && in_features == kEmbeddingWidth
+        && out_features == kVocabularySize && input->Dtype() == DataType::kBFLOAT16
+        && weight->Dtype() == DataType::kBFLOAT16 && input->IsContiguous() && weight->IsContiguous()
+        && input->GetDevice() == weight->GetDevice() && TryVocabularyProjection(*input, *weight, *output)) {
+        return output;
+    }
+#endif
     auto in_host = ToHostFloat(input, input->GetDevice().type());
     auto w_host = ToHostFloat(weight, weight->GetDevice().type());
     std::vector<float> out_host(static_cast<size_t>(rows * out_features));

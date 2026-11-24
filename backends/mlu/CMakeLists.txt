@@ -10,9 +10,8 @@ find_program(CNCC_EXECUTABLE cncc HINTS "${NEUWARE_HOME}/bin" REQUIRED)
 find_library(CNRT_LIBRARY cnrt HINTS "${NEUWARE_HOME}/lib64" REQUIRED)
 
 # CNNL ships separately from the base Neuware image. When it is missing the
-# build still produces a working runtime and kernels; only the BLAS handle is
-# left out. No operator calls CNNL yet - GEMM still uses the host fallback.
-option(INFINITRAIN_MLU_WITH_CNNL "Compile the CNNL BLAS handle support" ON)
+# provider retains the host GEMM fallback and does not compile the CNNL projection.
+option(INFINITRAIN_MLU_WITH_CNNL "Enable the CNNL handle and BF16 vocabulary projection" ON)
 if(INFINITRAIN_MLU_WITH_CNNL)
   find_library(CNNL_LIBRARY cnnl HINTS "${NEUWARE_HOME}/lib64")
   if(NOT CNNL_LIBRARY OR NOT EXISTS "${NEUWARE_HOME}/include/cnnl.h")
